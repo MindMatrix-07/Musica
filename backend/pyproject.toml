@@ -9,6 +9,6 @@ dependencies = [
   "pypdf>=5.0.0",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+# Dependency-only app (not a publishable package) — avoids hatchling wheel build on Vercel
+[tool.uv]
+package = false
