@@ -171,12 +171,38 @@ Musica/
 
 ---
 
-## Deploy frontend on Vercel
+## Deploy on Vercel (multi-service)
+
+This repo uses **[Vercel Services](https://vercel.com/docs/services)** via root `vercel.json`:
+
+| Service | Path | Entry |
+|---------|------|--------|
+| **frontend** | `/` | `frontend/` (Next.js) |
+| **backend** | `/api` | `backend/app/main.py` (FastAPI) |
+
+### Steps
 
 1. Import https://github.com/MindMatrix-07/Musica in [Vercel](https://vercel.com).
-2. Set **Root Directory** to `frontend`.
-3. Add environment variable `BACKEND_URL` = your hosted FastAPI URL (Vercel hosts the UI only; run the API on Railway, Render, Fly.io, or locally via tunnel for dev).
-4. Deploy. The Next.js rewrite proxies `/api/*` to `BACKEND_URL`.
+2. Leave **Root Directory** as the repository root (`.`).
+3. In project **Settings → General → Framework**, set framework to **Services** (required when `experimentalServices` is present).
+4. Add environment variable **`GEMINI_API_KEY`** (Production + Preview).
+5. Deploy. The dashboard calls `/api/curate` on the same domain; no `BACKEND_URL` needed.
+
+### Local dev with both services
+
+```powershell
+npm i -g vercel
+cd c:\Users\HP\Documents\Musica
+vercel dev -L
+```
+
+`vercel dev -L` runs frontend and FastAPI together with the same routing as production.
+
+### Optional: external API only
+
+If you host the API elsewhere, set `BACKEND_URL` in Vercel and use a separate frontend-only deploy (Root Directory = `frontend`).
+
+**Note:** Vercel serverless has a ~4.5 MB request body limit on Hobby; large audio files may need a paid plan or external API hosting.
 
 ---
 
