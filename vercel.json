@@ -7,11 +7,6 @@
       "framework": "vite"
     }
   },
-  "functions": {
-    "api/index.ts": {
-      "includeFiles": "grounding/**"
-    }
-  },
   "routes": [
     {
       "src": "/api/(.*)",
