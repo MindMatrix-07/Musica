@@ -1,5 +1,12 @@
 {
   "version": 2,
+  "experimentalServices": {
+    "web": {
+      "entrypoint": ".",
+      "routePrefix": "/",
+      "framework": "vite"
+    }
+  },
   "functions": {
     "api/index.ts": {
       "includeFiles": "grounding/**"
