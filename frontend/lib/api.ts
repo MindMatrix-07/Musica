@@ -15,6 +15,7 @@ export async function curateAudio(
   options: {
     model: CurateModel;
     temperature: number;
+    userPrompt?: string;
     onProgress?: (percent: number) => void;
   }
 ): Promise<CurateResponse> {
@@ -22,6 +23,9 @@ export async function curateAudio(
   form.append("file", file);
   form.append("model", options.model);
   form.append("temperature", String(options.temperature));
+  if (options.userPrompt?.trim()) {
+    form.append("user_prompt", options.userPrompt.trim());
+  }
 
   const apiKey = getApiKey();
   if (!apiKey) {

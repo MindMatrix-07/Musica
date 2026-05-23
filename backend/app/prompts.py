@@ -23,4 +23,12 @@ Requirements:
 
 --- GROUNDING: EXTENDED GUIDELINES ---
 {extended_guidelines}
+{user_instructions_block}
+"""
+
+USER_INSTRUCTIONS_BLOCK = """
+--- ADDITIONAL CURATOR INSTRUCTIONS (from user) ---
+Follow these when compatible with official Musixmatch policies above. If anything conflicts, official policies win.
+
+{user_prompt}
 """

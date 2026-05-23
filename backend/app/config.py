@@ -19,6 +19,7 @@ EXTENDED_TXT_FALLBACK = GROUNDING_DIR / "musixmatch_extended_guidelines.txt"
 MAX_UPLOAD_BYTES = (
     4 * 1024 * 1024 if IS_VERCEL else 50 * 1024 * 1024
 )
+MAX_USER_PROMPT_CHARS = 2000
 ALLOWED_EXTENSIONS = {".mp3", ".wav"}
 ALLOWED_MIME_TYPES = {
     "audio/mpeg",

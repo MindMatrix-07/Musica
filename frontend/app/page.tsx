@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { ConfigPanel } from "@/components/ConfigPanel";
+import { PromptBox } from "@/components/PromptBox";
 import { ResultsViewer } from "@/components/ResultsViewer";
 import { UploadZone } from "@/components/UploadZone";
 import { curateAudio, type CurateModel } from "@/lib/api";
+import { getStoredPrompt, setStoredPrompt } from "@/lib/prompt";
 import { hasApiKey } from "@/lib/settings";
 
 const TEMPERATURE = 0.1;
@@ -20,7 +22,16 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [apiKeyReady, setApiKeyReady] = useState(false);
+  const [userPrompt, setUserPrompt] = useState("");
   const audioUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setUserPrompt(getStoredPrompt());
+  }, []);
+
+  useEffect(() => {
+    setStoredPrompt(userPrompt);
+  }, [userPrompt]);
 
   useEffect(() => {
     const sync = () => setApiKeyReady(hasApiKey());
@@ -55,6 +66,7 @@ export default function DashboardPage() {
         const result = await curateAudio(selected, {
           model,
           temperature: TEMPERATURE,
+          userPrompt,
           onProgress: setProgress,
         });
         setMarkdown(result.markdown);
@@ -65,7 +77,7 @@ export default function DashboardPage() {
         setProgress(null);
       }
     },
-    [model]
+    [model, userPrompt]
   );
 
   return (
@@ -93,6 +105,11 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-1">
+          <PromptBox
+            value={userPrompt}
+            onChange={setUserPrompt}
+            disabled={processing}
+          />
           <UploadZone
             onFileSelect={onFileSelect}
             disabled={processing || !apiKeyReady}

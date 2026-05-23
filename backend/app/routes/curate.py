@@ -7,6 +7,7 @@ from app.config import (
     ALLOWED_MIME_TYPES,
     DEFAULT_MODEL,
     DEFAULT_TEMPERATURE,
+    MAX_USER_PROMPT_CHARS,
     MODEL_DEEP,
     MODEL_FAST,
 )
@@ -27,11 +28,24 @@ def _resolve_api_key(header_key: str | None) -> str:
     return key
 
 
+def _normalize_user_prompt(raw: str | None) -> str | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if len(text) > MAX_USER_PROMPT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Instructions must be {MAX_USER_PROMPT_CHARS} characters or fewer.",
+        )
+    return text
+
+
 @router.post("/curate")
 async def curate_endpoint(
     file: UploadFile = File(...),
     model: str = Form(default=MODEL_FAST),
     temperature: float = Form(default=DEFAULT_TEMPERATURE),
+    user_prompt: str = Form(default=""),
     x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
 ):
     """
@@ -41,6 +55,7 @@ async def curate_endpoint(
     purge_stale_temp()
     ensure_grounding_files()
     api_key = _resolve_api_key(x_gemini_api_key)
+    prompt = _normalize_user_prompt(user_prompt)
 
     if model not in {MODEL_FAST, MODEL_DEEP, "gemini-3.5-flash", "gemini-1.5-pro"}:
         model = DEFAULT_MODEL
@@ -62,6 +77,7 @@ async def curate_endpoint(
             model=model,
             temperature=temperature,
             api_key=api_key,
+            user_prompt=prompt,
         )
         return {
             "markdown": markdown,
