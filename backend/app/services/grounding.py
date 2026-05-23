@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pathlib import Path
 
 from app.config import EXTENDED_PDF_PATH, EXTENDED_TXT_FALLBACK, WEB_GUIDELINES_PATH
@@ -9,12 +10,24 @@ Official sources (always apply web + extended together):
 """
 
 
+def _read_text(path: Path, fallback: str) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return fallback
+
+
+@lru_cache(maxsize=1)
 def load_web_guidelines() -> str:
-    return WEB_GUIDELINES_PATH.read_text(encoding="utf-8")
+    return _read_text(
+        WEB_GUIDELINES_PATH,
+        "(Web guidelines file missing on server.)",
+    )
 
 
+@lru_cache(maxsize=1)
 def load_extended_guidelines() -> str:
-    if EXTENDED_PDF_PATH.exists():
+    if EXTENDED_PDF_PATH.is_file():
         try:
             from pypdf import PdfReader
 
@@ -28,13 +41,16 @@ def load_extended_guidelines() -> str:
                 return "\n\n".join(parts)
         except Exception:
             pass
-    if EXTENDED_TXT_FALLBACK.exists():
-        return EXTENDED_TXT_FALLBACK.read_text(encoding="utf-8")
-    return "(Extended guidelines PDF not found. Add musixmatch_extended_guidelines.pdf to backend/grounding/.)"
+    if EXTENDED_TXT_FALLBACK.is_file():
+        return _read_text(
+            EXTENDED_TXT_FALLBACK,
+            "(Extended guidelines not found.)",
+        )
+    return "(Extended guidelines not found on server.)"
 
 
+@lru_cache(maxsize=1)
 def load_combined_guidelines() -> str:
-    """Web + extended guidelines in one block for every AI pass."""
     web = load_web_guidelines()
     extended = load_extended_guidelines()
     return f"""{GUIDELINES_SOURCES}
@@ -48,5 +64,7 @@ def load_combined_guidelines() -> str:
 
 
 def ensure_grounding_files() -> None:
-    if not WEB_GUIDELINES_PATH.exists():
-        raise FileNotFoundError(f"Missing {WEB_GUIDELINES_PATH}")
+    """Warn via fallback text if files are missing — never crash the function."""
+    if not WEB_GUIDELINES_PATH.is_file():
+        load_web_guidelines.cache_clear()
+        load_combined_guidelines.cache_clear()

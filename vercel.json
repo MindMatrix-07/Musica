@@ -13,7 +13,8 @@
       "routePrefix": "/api",
       "maxDuration": 300,
       "memory": 1024,
-      "includeFiles": "backend/grounding/**"
+      "includeFiles": "backend/grounding/**",
+      "excludeFiles": "backend/scripts/**"
     }
   }
 }

@@ -2,21 +2,28 @@ import logging
 import os
 from pathlib import Path
 
-from app.config import COMPRESS_TARGET_BYTES, UPLOAD_MAX_BYTES
+from app.config import COMPRESS_TARGET_BYTES, IS_VERCEL, UPLOAD_MAX_BYTES
 
 logger = logging.getLogger(__name__)
 
-# Highest quality first — stop at first export under target
 _SERVER_BITRATES = ("192k", "160k", "128k", "112k", "96k")
 
 
 def compress_audio_if_needed(path: Path) -> tuple[Path, bool]:
     """
     Shrink audio when over COMPRESS_TARGET_BYTES.
-    Uses ffmpeg via pydub when available; otherwise returns original path.
+    Skipped on Vercel (no ffmpeg; client already compresses).
     """
     size = path.stat().st_size
     if size <= COMPRESS_TARGET_BYTES:
+        return path, False
+
+    if IS_VERCEL:
+        if size > UPLOAD_MAX_BYTES:
+            raise ValueError(
+                f"File exceeds {UPLOAD_MAX_BYTES // (1024 * 1024)} MB upload limit. "
+                "Use browser compression before upload."
+            )
         return path, False
 
     try:

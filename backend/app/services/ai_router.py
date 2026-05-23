@@ -4,7 +4,6 @@ from typing import Any
 
 from app.config import PROVIDER_GEMINI, PROVIDER_OPENAI
 from app.services.gemini_curator import curate_audio_stream as gemini_stream
-from app.services.openai_curator import curate_audio_stream_openai
 from app.services.training_context import parse_training_messages
 
 
@@ -31,6 +30,8 @@ def curate_audio_stream(
                 "message": "OpenAI API key required. Add it in Settings.",
             }
             return
+        from app.services.openai_curator import curate_audio_stream_openai
+
         yield from curate_audio_stream_openai(
             audio_path,
             api_key=openai_api_key,

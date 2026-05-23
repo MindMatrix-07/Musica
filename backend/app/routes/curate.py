@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import iterate_in_threadpool
 
 from app.config import (
     ALLOWED_MIME_TYPES,
@@ -174,6 +175,7 @@ async def curate_stream_endpoint(
         raise HTTPException(status_code=status, detail=msg) from e
 
     def event_generator():
+        yield format_sse({"type": "status", "message": "Connected — starting curation…"})
         try:
             if compressed:
                 yield format_sse(
@@ -203,7 +205,7 @@ async def curate_stream_endpoint(
             delete_file(temp_path)
 
     return StreamingResponse(
-        event_generator(),
+        iterate_in_threadpool(event_generator()),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
