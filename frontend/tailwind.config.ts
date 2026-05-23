@@ -11,13 +11,13 @@ const config: Config = {
       colors: {
         foreground: "#e8e8ed",
         surface: {
-          DEFAULT: "#0c0c0f",
-          raised: "#14141a",
-          border: "#252530",
+          DEFAULT: "rgb(0 0 0 / 0.25)",
+          raised: "rgb(0 0 0 / 0.35)",
+          border: "rgb(255 255 255 / 0.12)",
         },
         accent: {
-          DEFAULT: "#8b5cf6",
-          muted: "#6d28d9",
+          DEFAULT: "#e879f9",
+          muted: "#c026d3",
         },
       },
       fontFamily: {
