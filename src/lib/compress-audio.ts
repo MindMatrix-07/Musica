@@ -6,14 +6,14 @@ declare global {
   }
 }
 
-const MAX_DIRECT_UPLOAD_BYTES = 3.6 * 1024 * 1024;
-const MAX_COMPRESSED_UPLOAD_BYTES = 4.1 * 1024 * 1024;
+const MAX_DIRECT_UPLOAD_BYTES = 4.15 * 1024 * 1024;
+const MAX_COMPRESSED_UPLOAD_BYTES = 4.15 * 1024 * 1024;
 const MP3_BLOCK_SIZE = 1152;
 
 const COMPRESSION_PRESETS = [
+  { sampleRate: 44_100, kbps: 128, label: "MP3 mono 128 kbps" },
+  { sampleRate: 44_100, kbps: 112, label: "MP3 mono 112 kbps" },
   { sampleRate: 44_100, kbps: 96, label: "MP3 mono 96 kbps" },
-  { sampleRate: 44_100, kbps: 64, label: "MP3 mono 64 kbps" },
-  { sampleRate: 32_000, kbps: 48, label: "MP3 mono 48 kbps" },
 ] as const;
 
 export interface CompressionResult {
@@ -145,9 +145,9 @@ export async function compressAudioIfNeeded(file: File): Promise<CompressionResu
 
   if (smallest) {
     throw new Error(
-      `Compressed audio is still too large for Vercel (${formatBytes(
+      `This full song is too large for high-quality website upload (${formatBytes(
         smallest.file.size
-      )}). Try a shorter clip, or use the PC app for full-quality longer songs.`
+      )}). Use a shorter clip on the website, or use the PC app for full-quality longer songs.`
     );
   }
 
