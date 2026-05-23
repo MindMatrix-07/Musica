@@ -1,4 +1,8 @@
+import { getApiKey } from "@/lib/settings";
+
 export type CurateModel = "gemini-3.5-flash" | "gemini-1.5-pro";
+
+export const API_KEY_HEADER = "X-Gemini-Api-Key";
 
 export interface CurateResponse {
   markdown: string;
@@ -19,10 +23,20 @@ export async function curateAudio(
   form.append("model", options.model);
   form.append("temperature", String(options.temperature));
 
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error(
+      "Gemini API key required. Open Settings and add your key."
+    );
+  }
+
   options.onProgress?.(10);
 
   const res = await fetch("/api/curate", {
     method: "POST",
+    headers: {
+      [API_KEY_HEADER]: apiKey,
+    },
     body: form,
   });
 

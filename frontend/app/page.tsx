@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { ConfigPanel } from "@/components/ConfigPanel";
 import { ResultsViewer } from "@/components/ResultsViewer";
 import { UploadZone } from "@/components/UploadZone";
 import { curateAudio, type CurateModel } from "@/lib/api";
+import { hasApiKey } from "@/lib/settings";
 
 const TEMPERATURE = 0.1;
 
@@ -16,7 +19,15 @@ export default function DashboardPage() {
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [apiKeyReady, setApiKeyReady] = useState(false);
   const audioUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const sync = () => setApiKeyReady(hasApiKey());
+    sync();
+    window.addEventListener("musica-settings-updated", sync);
+    return () => window.removeEventListener("musica-settings-updated", sync);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -59,25 +70,32 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-      <header className="mb-10">
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent">
-          Private Workspace
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-          Musica Curator
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-foreground/50">
-          Upload complex audio, apply permanent Musixmatch formatting policies,
-          and export structured markdown lyrics. Files are processed transiently
-          and never persisted on disk beyond the request.
-        </p>
-      </header>
+      <AppHeader />
+
+      <p className="-mt-4 mb-8 max-w-2xl text-sm text-foreground/50">
+        Upload complex audio, apply permanent Musixmatch formatting policies,
+        and export structured markdown lyrics. Files are processed transiently
+        and never persisted on disk beyond the request.
+      </p>
+
+      {!apiKeyReady && (
+        <div
+          className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+          role="alert"
+        >
+          Add your Gemini API key in{" "}
+          <Link href="/settings" className="font-medium underline">
+            Settings
+          </Link>{" "}
+          before uploading audio.
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-1">
           <UploadZone
             onFileSelect={onFileSelect}
-            disabled={processing}
+            disabled={processing || !apiKeyReady}
             progress={processing ? progress : null}
           />
           <ConfigPanel
@@ -121,7 +139,7 @@ export default function DashboardPage() {
           Musixmatch Guidelines
         </a>
         {" · "}
-        Requires GEMINI_API_KEY (server-side only)
+        API key configured in Settings (browser local storage)
       </footer>
     </main>
   );

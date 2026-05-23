@@ -33,16 +33,23 @@ def _wait_for_file_active(client: genai.Client, uploaded, timeout_sec: int = 120
     raise TimeoutError(f"Timed out waiting for file to become ACTIVE: {name}")
 
 
+def _make_client(api_key: str | None) -> genai.Client:
+    if api_key:
+        return genai.Client(api_key=api_key)
+    return genai.Client()
+
+
 def curate_audio(
     audio_path: Path,
     *,
     model: str = DEFAULT_MODEL,
     temperature: float = DEFAULT_TEMPERATURE,
+    api_key: str | None = None,
 ) -> str:
     """
     Upload audio to Gemini, run curation with system instruction + grounding text.
     """
-    client = genai.Client()
+    client = _make_client(api_key)
     resolved_model = resolve_model(model)
 
     uploaded = client.files.upload(file=str(audio_path))

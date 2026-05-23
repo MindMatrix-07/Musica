@@ -1,6 +1,7 @@
+import os
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 
 from app.config import (
     ALLOWED_MIME_TYPES,
@@ -16,11 +17,22 @@ from app.services.temp_files import delete_file, purge_stale_temp, save_upload_t
 router = APIRouter()
 
 
+def _resolve_api_key(header_key: str | None) -> str:
+    key = (header_key or "").strip() or (os.getenv("GEMINI_API_KEY") or "").strip()
+    if not key:
+        raise HTTPException(
+            status_code=401,
+            detail="Gemini API key required. Add it in Settings or set GEMINI_API_KEY on the server.",
+        )
+    return key
+
+
 @router.post("/curate")
 async def curate_endpoint(
     file: UploadFile = File(...),
     model: str = Form(default=MODEL_FAST),
     temperature: float = Form(default=DEFAULT_TEMPERATURE),
+    x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
 ):
     """
     Accept audio upload, run Gemini curation, return markdown lyrics.
@@ -28,6 +40,7 @@ async def curate_endpoint(
     """
     purge_stale_temp()
     ensure_grounding_files()
+    api_key = _resolve_api_key(x_gemini_api_key)
 
     if model not in {MODEL_FAST, MODEL_DEEP, "gemini-3.5-flash", "gemini-1.5-pro"}:
         model = DEFAULT_MODEL
@@ -48,6 +61,7 @@ async def curate_endpoint(
             temp_path,
             model=model,
             temperature=temperature,
+            api_key=api_key,
         )
         return {
             "markdown": markdown,
