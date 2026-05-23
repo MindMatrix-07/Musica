@@ -197,7 +197,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
   // Metadata check configuration
-  app.get("/api/config", (req, res) => {
+  app.get(/^\/(?:api\/)?config$/, (req, res) => {
     res.json({
       hasGeminiKey:
         typeof process.env.GEMINI_API_KEY === "string" &&
@@ -206,7 +206,7 @@ app.use(express.urlencoded({ extended: true }));
   });
 
   // Streaming Curation API Endpoint
-  app.post("/api/curate/stream", upload.single("file"), async (req, res) => {
+  app.post(/^\/(?:api\/)?curate\/stream$/, upload.single("file"), async (req, res) => {
     const file = req.file;
     if (!file) {
       return res.status(400).json({ detail: "Audio file is required" });
