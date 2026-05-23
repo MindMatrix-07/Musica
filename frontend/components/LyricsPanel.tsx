@@ -1,14 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import type { LyricsPhase } from "@/lib/api";
 import { LyricsMarkdown } from "./LyricsMarkdown";
 
 interface LyricsPanelProps {
   markdown: string | null;
   processing: boolean;
+  phase: LyricsPhase;
 }
 
-export function LyricsPanel({ markdown, processing }: LyricsPanelProps) {
+const PHASE_LABEL: Record<LyricsPhase, string> = {
+  idle: "",
+  transcription: "Live transcription",
+  structuring: "Applying structure tags…",
+  done: "Complete",
+};
+
+export function LyricsPanel({ markdown, processing, phase }: LyricsPanelProps) {
   const [copied, setCopied] = useState(false);
 
   const copyLyrics = async () => {
@@ -25,9 +34,24 @@ export function LyricsPanel({ markdown, processing }: LyricsPanelProps) {
   return (
     <div className="glass-panel flex min-h-[400px] flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <h3 className="text-xs font-medium uppercase tracking-widest text-foreground/50">
-          Curated lyrics
-        </h3>
+        <div className="flex items-center gap-3">
+          <h3 className="text-xs font-medium uppercase tracking-widest text-foreground/50">
+            Curated lyrics
+          </h3>
+          {phase !== "idle" && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                phase === "structuring"
+                  ? "bg-amber-500/20 text-amber-200"
+                  : phase === "transcription"
+                    ? "bg-fuchsia-500/20 text-fuchsia-200"
+                    : "bg-emerald-500/20 text-emerald-200"
+              }`}
+            >
+              {PHASE_LABEL[phase]}
+            </span>
+          )}
+        </div>
         <button
           type="button"
           onClick={copyLyrics}
@@ -43,11 +67,11 @@ export function LyricsPanel({ markdown, processing }: LyricsPanelProps) {
           <LyricsMarkdown markdown={markdown} />
         ) : processing ? (
           <p className="text-sm text-foreground/45">
-            Lyrics will appear here as Gemini streams…
+            Waiting for transcription…
           </p>
         ) : (
           <p className="text-sm text-foreground/40">
-            Upload a track and run curation to generate lyrics.
+            Upload a track — lyrics appear here as soon as pass 1 streams.
           </p>
         )}
       </div>

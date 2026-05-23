@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { hasApiKey } from "@/lib/settings";
+import { hasActiveApiKey } from "@/lib/ai-settings";
 
 export function AppHeader() {
   const pathname = usePathname();
   const [keyConfigured, setKeyConfigured] = useState(false);
 
   useEffect(() => {
-    const sync = () => setKeyConfigured(hasApiKey());
+    const sync = () => setKeyConfigured(hasActiveApiKey());
     sync();
     window.addEventListener("musica-settings-updated", sync);
     return () => window.removeEventListener("musica-settings-updated", sync);

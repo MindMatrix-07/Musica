@@ -25,16 +25,14 @@ export function ConfigPanel({
   return (
     <div className="glass-panel p-5">
       <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-foreground/50">
-        Configuration
+        Models
       </h2>
 
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-foreground">
-            Lyrics model
-          </p>
+          <p className="text-sm font-medium text-foreground">Lyrics pass</p>
           <p className="mt-0.5 text-xs text-foreground/45">
-            {isFast ? "Fast transcription" : "Deeper transcription"}
+            {isFast ? "Gemini 3.5 Flash" : "Gemini 3.5 Pro (latest)"}
           </p>
         </div>
         <button
@@ -43,7 +41,7 @@ export function ConfigPanel({
           aria-checked={!isFast}
           disabled={disabled}
           onClick={() =>
-            onModelChange(isFast ? "gemini-1.5-pro" : "gemini-3.5-flash")
+            onModelChange(isFast ? "gemini-3.5-pro" : "gemini-3.5-flash")
           }
           className={`relative h-8 w-14 shrink-0 rounded-full transition-colors ${
             disabled ? "opacity-40" : ""
@@ -59,8 +57,11 @@ export function ConfigPanel({
 
       <div className="mt-4 flex justify-between text-xs text-foreground/50">
         <span className={isFast ? "text-accent" : ""}>gemini-3.5-flash</span>
-        <span className={!isFast ? "text-accent" : ""}>gemini-1.5-pro</span>
+        <span className={!isFast ? "text-accent" : ""}>gemini-3.5-pro</span>
       </div>
+      <p className="mt-2 text-xs text-foreground/40">
+        Structure pass always uses gemini-3.5-pro (latest Pro).
+      </p>
 
       <div className="mt-5 border-t border-surface-border pt-4">
         <div className="flex items-center justify-between gap-4">
@@ -69,7 +70,7 @@ export function ConfigPanel({
               Split structure tagging
             </p>
             <p className="mt-0.5 text-xs text-foreground/45">
-              Pass 1: lyrics · Pass 2: structure-only (Pro)
+              Show lyrics after pass 1 · tags auto-apply after pass 2
             </p>
           </div>
           <button
@@ -93,10 +94,6 @@ export function ConfigPanel({
             />
           </button>
         </div>
-        <p className="mt-2 text-xs text-foreground/40">
-          Recommended: Gemini writes lyrics; a dedicated tagging pass adds
-          [Verse]/[Chorus] per web + extended Musixmatch rules.
-        </p>
       </div>
 
       <div className="mt-5 border-t border-surface-border pt-4">

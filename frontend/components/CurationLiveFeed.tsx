@@ -23,9 +23,10 @@ export function CurationLiveFeed({
   if (!active && events.length === 0) {
     return (
       <div className="glass-panel p-5 text-sm text-foreground/45">
-        <p className="font-medium text-foreground/70">Google AI Studio live feed</p>
+        <p className="font-medium text-foreground/70">Curation live feed</p>
         <p className="mt-1">
-          Status and streamed tokens appear here while Gemini curates your track.
+          Status and streamed tokens appear here while your AI provider curates
+          the track.
         </p>
       </div>
     );
@@ -42,14 +43,7 @@ export function CurationLiveFeed({
             </span>
           )}
           <h3 className="text-xs font-medium uppercase tracking-widest text-foreground/60">
-            <a
-              href="https://aistudio.google.com"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-fuchsia-200"
-            >
-              Google AI Studio
-            </a>
+            Live feed
           </h3>
         </div>
         {currentPass && (

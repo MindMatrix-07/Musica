@@ -27,6 +27,7 @@ TRANSCRIPTION_TASK = """Listen to the attached audio in full. Write the complete
 Output ONLY the lyric lines (no structure section tags).
 
 {combined_guidelines}
+{training_block}
 {user_instructions_block}
 """
 
@@ -55,6 +56,7 @@ Return ONLY the full lyrics with structure tags added (Markdown). No explanation
 {draft_lyrics}
 
 {combined_guidelines}
+{training_block}
 {user_instructions_block}
 """
 
@@ -72,6 +74,7 @@ Requirements:
 
 --- GROUNDING: EXTENDED GUIDELINES ---
 {extended_guidelines}
+{training_block}
 {user_instructions_block}
 """
 

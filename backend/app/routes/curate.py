@@ -13,7 +13,8 @@ from app.config import (
     MODEL_FAST,
 )
 from app.services.audio_compress import cleanup_compressed, compress_audio_if_needed
-from app.services.gemini_curator import curate_audio, curate_audio_stream, format_sse
+from app.services.ai_router import curate_audio, curate_audio_stream
+from app.services.gemini_curator import format_sse
 from app.services.grounding import ensure_grounding_files
 from app.services.temp_files import delete_file, purge_stale_temp, save_upload_transient
 
@@ -28,6 +29,24 @@ def _resolve_api_key(header_key: str | None) -> str:
             detail="Gemini API key required. Add it in Settings or set GEMINI_API_KEY on the server.",
         )
     return key
+
+
+def _resolve_keys(
+    provider: str,
+    gemini_header: str | None,
+    openai_header: str | None,
+) -> tuple[str, str | None]:
+    provider = (provider or "gemini").lower()
+    openai_key = (openai_header or "").strip() or None
+    if provider == "openai":
+        if not openai_key:
+            raise HTTPException(
+                status_code=401,
+                detail="OpenAI API key required. Add it in Settings.",
+            )
+        return openai_key, openai_key
+    gemini_key = _resolve_api_key(gemini_header)
+    return gemini_key, openai_key
 
 
 def _normalize_user_prompt(raw: str | None) -> str | None:
@@ -49,7 +68,10 @@ async def curate_endpoint(
     temperature: float = Form(default=DEFAULT_TEMPERATURE),
     user_prompt: str = Form(default=""),
     split_structure: str = Form(default="true"),
+    provider: str = Form(default="gemini"),
+    training_messages: str = Form(default=""),
     x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
+    x_openai_api_key: str | None = Header(default=None, alias="X-OpenAI-Api-Key"),
 ):
     """
     Accept audio upload, run Gemini curation, return markdown lyrics.
@@ -57,11 +79,11 @@ async def curate_endpoint(
     """
     purge_stale_temp()
     ensure_grounding_files()
-    api_key = _resolve_api_key(x_gemini_api_key)
+    gemini_key, openai_key = _resolve_keys(provider, x_gemini_api_key, x_openai_api_key)
     prompt = _normalize_user_prompt(user_prompt)
     use_split = split_structure.lower() in {"true", "1", "yes", "on"}
 
-    if model not in {MODEL_FAST, MODEL_DEEP, "gemini-3.5-flash", "gemini-1.5-pro"}:
+    if model not in {MODEL_FAST, MODEL_DEEP, "gemini-3.5-flash", "gemini-3.5-pro"}:
         model = DEFAULT_MODEL
 
     if file.content_type and file.content_type not in ALLOWED_MIME_TYPES:
@@ -81,10 +103,13 @@ async def curate_endpoint(
         audio_path, compressed = compress_audio_if_needed(temp_path)
         markdown, pipeline = curate_audio(
             audio_path,
+            provider=provider,
+            gemini_api_key=gemini_key,
+            openai_api_key=openai_key,
             model=model,
             temperature=temperature,
-            api_key=api_key,
             user_prompt=prompt,
+            training_raw=training_messages,
             split_structure=use_split,
         )
         return {
@@ -115,16 +140,19 @@ async def curate_stream_endpoint(
     temperature: float = Form(default=DEFAULT_TEMPERATURE),
     user_prompt: str = Form(default=""),
     split_structure: str = Form(default="true"),
+    provider: str = Form(default="gemini"),
+    training_messages: str = Form(default=""),
     x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
+    x_openai_api_key: str | None = Header(default=None, alias="X-OpenAI-Api-Key"),
 ):
     """Server-Sent Events stream of live Gemini curation (Google AI Studio)."""
     purge_stale_temp()
     ensure_grounding_files()
-    api_key = _resolve_api_key(x_gemini_api_key)
+    gemini_key, openai_key = _resolve_keys(provider, x_gemini_api_key, x_openai_api_key)
     prompt = _normalize_user_prompt(user_prompt)
     use_split = split_structure.lower() in {"true", "1", "yes", "on"}
 
-    if model not in {MODEL_FAST, MODEL_DEEP, "gemini-3.5-flash", "gemini-1.5-pro"}:
+    if model not in {MODEL_FAST, MODEL_DEEP, "gemini-3.5-flash", "gemini-3.5-pro"}:
         model = DEFAULT_MODEL
 
     if file.content_type and file.content_type not in ALLOWED_MIME_TYPES:
@@ -152,10 +180,13 @@ async def curate_stream_endpoint(
                 )
             for event in curate_audio_stream(
                 audio_path,
+                provider=provider,
+                gemini_api_key=gemini_key,
+                openai_api_key=openai_key,
                 model=model,
                 temperature=temperature,
-                api_key=api_key,
                 user_prompt=prompt,
+                training_raw=training_messages,
                 split_structure=use_split,
             ):
                 if event.get("type") == "done":

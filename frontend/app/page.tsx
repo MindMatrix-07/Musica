@@ -12,15 +12,16 @@ import {
   curateAudioStream,
   type CurateModel,
   type CurateStreamEvent,
+  type LyricsPhase,
   type StreamPass,
 } from "@/lib/api";
+import { hasActiveApiKey } from "@/lib/ai-settings";
 import {
   compressAudioIfNeeded,
   formatBytes,
 } from "@/lib/compress-audio";
 import { getSplitStructure } from "@/lib/pipeline";
 import { getStoredPrompt, setStoredPrompt } from "@/lib/prompt";
-import { hasApiKey } from "@/lib/settings";
 
 const TEMPERATURE = 0.1;
 
@@ -30,6 +31,7 @@ export default function DashboardPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [markdown, setMarkdown] = useState<string | null>(null);
+  const [lyricsPhase, setLyricsPhase] = useState<LyricsPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [apiKeyReady, setApiKeyReady] = useState(false);
@@ -44,10 +46,17 @@ export default function DashboardPage() {
   useEffect(() => {
     setUserPrompt(getStoredPrompt());
     setSplitStructure(getSplitStructure());
-    const syncPipeline = () => setSplitStructure(getSplitStructure());
-    window.addEventListener("musica-pipeline-updated", syncPipeline);
-    return () =>
-      window.removeEventListener("musica-pipeline-updated", syncPipeline);
+    const sync = () => {
+      setApiKeyReady(hasActiveApiKey());
+      setSplitStructure(getSplitStructure());
+    };
+    sync();
+    window.addEventListener("musica-settings-updated", sync);
+    window.addEventListener("musica-pipeline-updated", sync);
+    return () => {
+      window.removeEventListener("musica-settings-updated", sync);
+      window.removeEventListener("musica-pipeline-updated", sync);
+    };
   }, []);
 
   useEffect(() => {
@@ -55,44 +64,76 @@ export default function DashboardPage() {
   }, [userPrompt]);
 
   useEffect(() => {
-    const sync = () => setApiKeyReady(hasApiKey());
-    sync();
-    window.addEventListener("musica-settings-updated", sync);
-    return () => window.removeEventListener("musica-settings-updated", sync);
-  }, []);
-
-  useEffect(() => {
     return () => {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     };
   }, []);
 
-  const loadFile = useCallback(
-    (selected: File) => {
-      setFile(selected);
-      setFileName(selected.name);
-      setError(null);
-      setMarkdown(null);
-      setStreamEvents([]);
-      setLiveText("");
-      setCurrentPass(null);
+  const handleStreamEvent = useCallback((event: CurateStreamEvent) => {
+    setStreamEvents((prev) => [...prev, event]);
 
-      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-      const url = URL.createObjectURL(selected);
-      audioUrlRef.current = url;
-      setAudioUrl(url);
-    },
-    []
-  );
+    if (event.type === "pass_start") {
+      setCurrentPass(event.pass);
+      setLiveText("");
+      if (event.pass === "structure") {
+        setLyricsPhase("structuring");
+      }
+    }
+
+    if (event.type === "chunk") {
+      setCurrentPass(event.pass);
+      if (event.pass === "transcription" || event.pass === "single-pass") {
+        setLyricsPhase("transcription");
+        setMarkdown((prev) => (prev ?? "") + event.text);
+        setLiveText((t) => t + event.text);
+      } else if (event.pass === "structure") {
+        setLiveText((t) => t + event.text);
+      }
+    }
+
+    if (event.type === "pass_end") {
+      if (event.pass === "transcription" || event.pass === "single-pass") {
+        if (event.draft) setMarkdown(event.draft);
+        setLyricsPhase(splitStructure ? "structuring" : "done");
+      }
+      if (event.pass === "structure") {
+        setLiveText("");
+      }
+    }
+
+    if (event.type === "done") {
+      setMarkdown(event.markdown);
+      setLyricsPhase("done");
+      setCurrentPass(null);
+      setLiveText("");
+    }
+  }, [splitStructure]);
+
+  const loadFile = useCallback((selected: File) => {
+    setFile(selected);
+    setFileName(selected.name);
+    setError(null);
+    setMarkdown(null);
+    setLyricsPhase("idle");
+    setStreamEvents([]);
+    setLiveText("");
+    setCurrentPass(null);
+
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    const url = URL.createObjectURL(selected);
+    audioUrlRef.current = url;
+    setAudioUrl(url);
+  }, []);
 
   const runCuration = useCallback(
     async (targetFile?: File) => {
       const audioFile = targetFile ?? file;
-      if (!audioFile || !hasApiKey()) return;
+      if (!audioFile || !hasActiveApiKey()) return;
 
       setProcessing(true);
       setError(null);
-      setMarkdown(null);
+      setMarkdown("");
+      setLyricsPhase("transcription");
       setStreamEvents([]);
       setLiveText("");
       setCurrentPass(null);
@@ -101,49 +142,33 @@ export default function DashboardPage() {
         const { file: uploadFile, compressed, originalSize, finalSize } =
           await compressAudioIfNeeded(audioFile);
 
-      if (compressed) {
-        setStreamEvents([
-          {
-            type: "status",
-            message: `Compressed ${formatBytes(originalSize)} → ${formatBytes(finalSize)}`,
-          },
-        ]);
-      }
+        if (compressed) {
+          setStreamEvents([
+            {
+              type: "status",
+              message: `Compressed ${formatBytes(originalSize)} → ${formatBytes(finalSize)}`,
+            },
+          ]);
+        }
 
-      const result = await curateAudioStream(uploadFile, {
-        model,
-        temperature: TEMPERATURE,
-        userPrompt,
-        splitStructure,
-        onEvent: (event) => {
-          setStreamEvents((prev) => [...prev, event]);
-          if (event.type === "pass_start") {
-            setCurrentPass(event.pass);
-            setLiveText("");
-          }
-          if (event.type === "chunk") {
-            setCurrentPass(event.pass);
-            setLiveText((t) => t + event.text);
-          }
-          if (event.type === "pass_end") {
-            setLiveText("");
-          }
-          if (event.type === "done") {
-            setMarkdown(event.markdown);
-            setCurrentPass(null);
-            setLiveText("");
-          }
-        },
-      });
+        const result = await curateAudioStream(uploadFile, {
+          model,
+          temperature: TEMPERATURE,
+          userPrompt,
+          splitStructure,
+          onEvent: handleStreamEvent,
+        });
 
         setMarkdown(result.markdown);
+        setLyricsPhase("done");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
+        setLyricsPhase("idle");
       } finally {
         setProcessing(false);
       }
     },
-    [file, model, userPrompt, splitStructure]
+    [file, model, userPrompt, splitStructure, handleStreamEvent]
   );
 
   const onFileInput = useCallback(
@@ -152,7 +177,7 @@ export default function DashboardPage() {
       e.target.value = "";
       if (!f) return;
       loadFile(f);
-      if (hasApiKey()) {
+      if (hasActiveApiKey()) {
         await runCuration(f);
       }
     },
@@ -176,11 +201,11 @@ export default function DashboardPage() {
           className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
           role="alert"
         >
-          Add your Gemini API key in{" "}
+          Configure your AI provider in{" "}
           <Link href="/settings" className="font-medium underline">
             Settings
-          </Link>{" "}
-          to enable curation.
+          </Link>
+          .
         </div>
       )}
 
@@ -202,7 +227,11 @@ export default function DashboardPage() {
           currentPass={currentPass}
         />
 
-        <LyricsPanel markdown={markdown} processing={processing} />
+        <LyricsPanel
+          markdown={markdown}
+          processing={processing}
+          phase={lyricsPhase}
+        />
 
         <details className="glass-panel group open:pb-5">
           <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium text-foreground/80 marker:content-none [&::-webkit-details-marker]:hidden">
@@ -249,18 +278,6 @@ export default function DashboardPage() {
           {error}
         </div>
       )}
-
-      <footer className="mt-10 text-center text-xs text-foreground/30">
-        Powered by Google AI Studio (Gemini) ·{" "}
-        <a
-          href="https://community.musixmatch.com/guidelines?lng=en"
-          className="underline hover:text-foreground/50"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Musixmatch Guidelines
-        </a>
-      </footer>
     </main>
   );
 }

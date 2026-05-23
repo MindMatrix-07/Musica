@@ -1,10 +1,19 @@
-import { getApiKey } from "@/lib/settings";
+import {
+  getGeminiApiKey,
+  getOpenAiApiKey,
+  getProvider,
+  getTrainingMessages,
+  hasActiveApiKey,
+} from "@/lib/ai-settings";
 
 export const API_KEY_HEADER = "X-Gemini-Api-Key";
+export const OPENAI_KEY_HEADER = "X-OpenAI-Api-Key";
 
-export type CurateModel = "gemini-3.5-flash" | "gemini-1.5-pro";
+export type CurateModel = "gemini-3.5-flash" | "gemini-3.5-pro";
 
 export type StreamPass = "transcription" | "structure" | "single-pass";
+
+export type LyricsPhase = "idle" | "transcription" | "structuring" | "done";
 
 export type CurateStreamEvent =
   | { type: "status"; message: string }
@@ -15,7 +24,7 @@ export type CurateStreamEvent =
       message: string;
     }
   | { type: "chunk"; pass: StreamPass; text: string }
-  | { type: "pass_end"; pass: StreamPass; preview?: string }
+  | { type: "pass_end"; pass: StreamPass; draft?: string }
   | {
       type: "done";
       markdown: string;
@@ -24,6 +33,7 @@ export type CurateStreamEvent =
       temperature: number;
       split_structure: boolean;
       compressed?: boolean;
+      provider?: string;
     }
   | { type: "error"; message: string };
 
@@ -46,7 +56,7 @@ function parseSseEvents(buffer: string): { events: CurateStreamEvent[]; rest: st
     try {
       events.push(JSON.parse(line.slice(5).trim()) as CurateStreamEvent);
     } catch {
-      /* skip malformed */
+      /* skip */
     }
   }
   return { events, rest };
@@ -62,28 +72,33 @@ export async function curateAudioStream(
     onEvent: (event: CurateStreamEvent) => void;
   }
 ): Promise<CurateResponse> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error(
-      "Gemini API key required. Open Settings and add your key."
-    );
+  if (!hasActiveApiKey()) {
+    throw new Error("API key required. Open Settings and configure your AI provider.");
   }
 
   const form = new FormData();
   form.append("file", file);
   form.append("model", options.model);
   form.append("temperature", String(options.temperature));
+  form.append("provider", getProvider());
   form.append(
     "split_structure",
     options.splitStructure === false ? "false" : "true"
   );
+  form.append("training_messages", JSON.stringify(getTrainingMessages()));
   if (options.userPrompt?.trim()) {
     form.append("user_prompt", options.userPrompt.trim());
   }
 
+  const headers: Record<string, string> = {};
+  const gemini = getGeminiApiKey();
+  const openai = getOpenAiApiKey();
+  if (gemini) headers[API_KEY_HEADER] = gemini;
+  if (openai) headers[OPENAI_KEY_HEADER] = openai;
+
   const res = await fetch("/api/curate/stream", {
     method: "POST",
-    headers: { [API_KEY_HEADER]: apiKey },
+    headers,
     body: form,
   });
 
@@ -111,9 +126,7 @@ export async function curateAudioStream(
     buffer = rest;
     for (const event of events) {
       options.onEvent(event);
-      if (event.type === "error") {
-        throw new Error(event.message);
-      }
+      if (event.type === "error") throw new Error(event.message);
       if (event.type === "done") {
         result = {
           markdown: event.markdown,
@@ -127,34 +140,7 @@ export async function curateAudioStream(
     }
   }
 
-  if (!result) {
-    throw new Error("Stream ended without a result");
-  }
+  if (!result) throw new Error("Stream ended without a result");
   return result;
 }
 
-/** @deprecated Use curateAudioStream for live updates */
-export async function curateAudio(
-  file: File,
-  options: {
-    model: CurateModel;
-    temperature: number;
-    userPrompt?: string;
-    splitStructure?: boolean;
-    onProgress?: (percent: number) => void;
-  }
-): Promise<CurateResponse> {
-  let progress = 15;
-  return curateAudioStream(file, {
-    model: options.model,
-    temperature: options.temperature,
-    userPrompt: options.userPrompt,
-    splitStructure: options.splitStructure,
-    onEvent: (e) => {
-      if (e.type === "chunk") progress = Math.min(95, progress + 1);
-      if (e.type === "pass_end") progress = Math.min(90, progress + 10);
-      if (e.type === "status") progress = Math.min(85, progress + 2);
-      options.onProgress?.(progress);
-    },
-  });
-}

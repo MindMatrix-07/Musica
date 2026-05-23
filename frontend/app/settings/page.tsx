@@ -4,117 +4,248 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import {
-  clearApiKey,
-  getApiKey,
+  addTrainingMessage,
+  clearGeminiApiKey,
+  clearOpenAiApiKey,
+  getGeminiApiKey,
+  getOpenAiApiKey,
+  getProvider,
+  getTrainingMessages,
   maskApiKey,
-  setApiKey,
-} from "@/lib/settings";
+  setGeminiApiKey,
+  setOpenAiApiKey,
+  setProvider,
+  removeTrainingMessage,
+  type AiProvider,
+} from "@/lib/ai-settings";
 
 export default function SettingsPage() {
-  const [input, setInput] = useState("");
-  const [savedMasked, setSavedMasked] = useState<string | null>(null);
+  const [provider, setProviderState] = useState<AiProvider>("gemini");
+  const [geminiInput, setGeminiInput] = useState("");
+  const [openaiInput, setOpenaiInput] = useState("");
+  const [geminiMasked, setGeminiMasked] = useState<string | null>(null);
+  const [openaiMasked, setOpenaiMasked] = useState<string | null>(null);
+  const [trainingInput, setTrainingInput] = useState("");
+  const [trainingList, setTrainingList] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const existing = getApiKey();
-    if (existing) {
-      setSavedMasked(maskApiKey(existing));
-    }
-  }, []);
-
-  const handleSave = () => {
-    const trimmed = input.trim();
-    if (!trimmed) {
-      setMessage("Enter a valid API key before saving.");
-      return;
-    }
-    setApiKey(trimmed);
-    setSavedMasked(maskApiKey(trimmed));
-    setInput("");
-    setMessage("API key saved in this browser.");
+  const refresh = () => {
+    setProviderState(getProvider());
+    const g = getGeminiApiKey();
+    const o = getOpenAiApiKey();
+    setGeminiMasked(g ? maskApiKey(g) : null);
+    setOpenaiMasked(o ? maskApiKey(o) : null);
+    setTrainingList(getTrainingMessages());
   };
 
-  const handleClear = () => {
-    clearApiKey();
-    setSavedMasked(null);
-    setInput("");
-    setMessage("API key removed from this browser.");
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const saveGemini = () => {
+    if (!geminiInput.trim()) {
+      setMessage("Enter a Gemini API key.");
+      return;
+    }
+    setGeminiApiKey(geminiInput);
+    setGeminiInput("");
+    refresh();
+    setMessage("Gemini key saved.");
+  };
+
+  const saveOpenai = () => {
+    if (!openaiInput.trim()) {
+      setMessage("Enter an OpenAI API key.");
+      return;
+    }
+    setOpenAiApiKey(openaiInput);
+    setOpenaiInput("");
+    refresh();
+    setMessage("OpenAI key saved.");
+  };
+
+  const addTraining = () => {
+    addTrainingMessage(trainingInput);
+    setTrainingInput("");
+    refresh();
+    setMessage("Training note added — applied to every curation.");
   };
 
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
       <AppHeader />
 
-      <div className="glass-panel p-6">
-        <h2 className="text-lg font-medium text-foreground">Gemini API Key</h2>
-        <p className="mt-2 text-sm text-foreground/50">
-          Your key is stored only in this browser&apos;s local storage and sent
-          with each curation request. It is never written to the server
-          environment. Get a free key from{" "}
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noreferrer"
-            className="text-accent underline hover:text-accent/80"
-          >
-            Google AI Studio
-          </a>
-          .
-        </p>
-
-        {savedMasked && (
-          <p className="mt-4 rounded-lg border border-surface-border bg-surface/50 px-3 py-2 font-mono text-xs text-foreground/70">
-            Saved: {savedMasked}
+      <div className="space-y-6">
+        <div className="glass-panel p-6">
+          <h2 className="text-lg font-medium text-foreground">AI provider</h2>
+          <p className="mt-2 text-sm text-foreground/50">
+            Choose which service curates your tracks. Keys stay in this browser only.
           </p>
-        )}
+          <div className="mt-4 flex gap-3">
+            {(["gemini", "openai"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => {
+                  setProvider(p);
+                  setProviderState(p);
+                  setMessage(`Provider set to ${p === "gemini" ? "Google Gemini" : "OpenAI"}.`);
+                }}
+                className={`flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                  provider === p
+                    ? "border-accent bg-accent/20 text-foreground"
+                    : "border-surface-border text-foreground/60 hover:border-white/20"
+                }`}
+              >
+                {p === "gemini" ? "Google Gemini" : "OpenAI"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <label className="mt-6 block">
-          <span className="text-xs font-medium uppercase tracking-widest text-foreground/50">
-            {savedMasked ? "Replace API key" : "API key"}
-          </span>
+        <div className="glass-panel p-6">
+          <h2 className="text-lg font-medium text-foreground">Gemini API key</h2>
+          <p className="mt-2 text-sm text-foreground/50">
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent underline"
+            >
+              Google AI Studio
+            </a>
+          </p>
+          {geminiMasked && (
+            <p className="mt-3 font-mono text-xs text-foreground/70">
+              Saved: {geminiMasked}
+            </p>
+          )}
           <input
             type="password"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Paste your GEMINI_API_KEY"
-            autoComplete="off"
-            spellCheck={false}
-            className="mt-2 w-full rounded-xl border border-surface-border bg-surface px-4 py-3 font-mono text-sm text-foreground placeholder:text-foreground/30 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40"
+            value={geminiInput}
+            onChange={(e) => setGeminiInput(e.target.value)}
+            placeholder="GEMINI_API_KEY"
+            className="mt-3 w-full rounded-xl border border-surface-border bg-surface px-4 py-3 font-mono text-sm"
           />
-        </label>
-
-        {message && (
-          <p
-            className="mt-4 text-sm text-foreground/70"
-            role="status"
-          >
-            {message}
-          </p>
-        )}
-
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={handleSave}
-            className="rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent-muted"
-          >
-            Save key
-          </button>
-          {savedMasked && (
+          <div className="mt-3 flex gap-2">
             <button
               type="button"
-              onClick={handleClear}
-              className="rounded-xl border border-surface-border px-5 py-2.5 text-sm font-medium text-foreground/80 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+              onClick={saveGemini}
+              className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white"
             >
-              Remove key
+              Save
             </button>
+            {geminiMasked && (
+              <button
+                type="button"
+                onClick={() => {
+                  clearGeminiApiKey();
+                  refresh();
+                }}
+                className="rounded-xl border border-surface-border px-4 py-2 text-sm"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="glass-panel p-6">
+          <h2 className="text-lg font-medium text-foreground">OpenAI API key</h2>
+          <p className="mt-2 text-sm text-foreground/50">
+            Optional — Whisper transcription + GPT-4o structure pass.
+          </p>
+          {openaiMasked && (
+            <p className="mt-3 font-mono text-xs text-foreground/70">
+              Saved: {openaiMasked}
+            </p>
+          )}
+          <input
+            type="password"
+            value={openaiInput}
+            onChange={(e) => setOpenaiInput(e.target.value)}
+            placeholder="OPENAI_API_KEY"
+            className="mt-3 w-full rounded-xl border border-surface-border bg-surface px-4 py-3 font-mono text-sm"
+          />
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={saveOpenai}
+              className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white"
+            >
+              Save
+            </button>
+            {openaiMasked && (
+              <button
+                type="button"
+                onClick={() => {
+                  clearOpenAiApiKey();
+                  refresh();
+                }}
+                className="rounded-xl border border-surface-border px-4 py-2 text-sm"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="glass-panel p-6">
+          <h2 className="text-lg font-medium text-foreground">
+            Train with your messages
+          </h2>
+          <p className="mt-2 text-sm text-foreground/50">
+            Saved notes are injected into every curation (style, language, tagging
+            habits). Musixmatch official rules still win on conflict.
+          </p>
+          <textarea
+            value={trainingInput}
+            onChange={(e) => setTrainingInput(e.target.value)}
+            rows={3}
+            placeholder="e.g. Always use [Verse 1] not [Verse I]. Keep Roman Urdu lines as-is."
+            className="mt-3 w-full rounded-xl border border-surface-border bg-surface px-4 py-3 text-sm"
+          />
+          <button
+            type="button"
+            onClick={addTraining}
+            className="mt-3 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white"
+          >
+            Add training note
+          </button>
+          {trainingList.length > 0 && (
+            <ul className="mt-4 space-y-2">
+              {trainingList.map((note, i) => (
+                <li
+                  key={`${i}-${note.slice(0, 12)}`}
+                  className="flex items-start justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm"
+                >
+                  <span className="text-foreground/80">{note}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      removeTrainingMessage(i);
+                      refresh();
+                    }}
+                    className="shrink-0 text-xs text-red-300 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </div>
 
-      <p className="mt-8 text-center text-sm text-foreground/40">
-        <Link href="/" className="text-accent underline hover:text-accent/80">
-          Back to Curate
+      {message && (
+        <p className="text-sm text-foreground/70" role="status">
+          {message}
+        </p>
+      )}
+
+      <p className="text-center text-sm text-foreground/40">
+        <Link href="/" className="text-accent underline">
+          Back to player
         </Link>
       </p>
     </main>
