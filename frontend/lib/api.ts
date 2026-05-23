@@ -103,12 +103,28 @@ export async function curateAudioStream(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    const detail =
-      typeof err.detail === "string"
-        ? err.detail
-        : JSON.stringify(err.detail ?? err);
-    throw new Error(detail || "Curation stream failed");
+    const raw = await res.text();
+    let detail = "";
+    try {
+      const err = JSON.parse(raw) as { detail?: unknown };
+      if (typeof err.detail === "string") detail = err.detail;
+      else if (err.detail != null) detail = JSON.stringify(err.detail);
+    } catch {
+      detail = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    }
+    if (!detail) {
+      if (res.status === 413) {
+        detail =
+          "Upload too large for Vercel (max ~4 MB). Use a shorter track or let the app compress before upload.";
+      } else if (res.status === 401) {
+        detail = "API key missing or invalid. Check Settings.";
+      } else if (res.status === 504) {
+        detail = "Request timed out. Try a shorter track or disable split structure.";
+      } else {
+        detail = `Curation stream failed (HTTP ${res.status})`;
+      }
+    }
+    throw new Error(detail);
   }
 
   const reader = res.body?.getReader();
@@ -140,7 +156,11 @@ export async function curateAudioStream(
     }
   }
 
-  if (!result) throw new Error("Stream ended without a result");
+  if (!result) {
+    throw new Error(
+      "Stream ended before curation finished (connection timeout or server error). Try again with a shorter track."
+    );
+  }
   return result;
 }
 

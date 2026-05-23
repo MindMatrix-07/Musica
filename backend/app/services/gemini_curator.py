@@ -85,7 +85,10 @@ def _stream_generate(
             last_error = exc
             continue
     if last_error:
-        raise last_error
+        tried = ", ".join(model_candidates)
+        raise RuntimeError(
+            f"Gemini models unavailable (tried: {tried}): {last_error}"
+        ) from last_error
     raise RuntimeError("No models available for generation")
 
 

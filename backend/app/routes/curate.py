@@ -121,7 +121,9 @@ async def curate_endpoint(
             "compressed": compressed,
         }
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        msg = str(e)
+        status = 413 if "exceeds" in msg.lower() and "mb" in msg.lower() else 400
+        raise HTTPException(status_code=status, detail=msg) from e
     except TimeoutError as e:
         raise HTTPException(status_code=504, detail=str(e)) from e
     except Exception as e:
@@ -167,7 +169,9 @@ async def curate_stream_endpoint(
         temp_path = await save_upload_transient(file)
         audio_path, compressed = compress_audio_if_needed(temp_path)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        msg = str(e)
+        status = 413 if "exceeds" in msg.lower() and "mb" in msg.lower() else 400
+        raise HTTPException(status_code=status, detail=msg) from e
 
     def event_generator():
         try:

@@ -1,5 +1,17 @@
-/** Target size before upload (aligns with Vercel ~4.5 MB body limit). */
-export const COMPRESS_THRESHOLD_BYTES = 3.5 * 1024 * 1024;
+/**
+ * Upload limits (align with backend/app/config.py on Vercel).
+ * Vercel request body ~4.5 MB; server accepts up to 4 MB file bytes.
+ */
+export const UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
+/** Target encoded size — leaves room for multipart form overhead. */
+export const COMPRESS_TARGET_BYTES = Math.floor(UPLOAD_MAX_BYTES * 0.92);
+
+const SAMPLE_RATE = 32000;
+const MP3_KBPS_MAX = 160;
+const MP3_KBPS_MIN = 88;
+const MP3_KBPS_STEP = 8;
+const OPUS_BITS_MAX = 128_000;
+const OPUS_BITS_MIN = 64_000;
 
 function floatTo16BitPCM(input: Float32Array): Int16Array {
   const out = new Int16Array(input.length);
@@ -85,7 +97,29 @@ async function encodeMp3(
   return new Blob([merged], { type: "audio/mpeg" });
 }
 
-/** Fallback when MP3 encoder fails — opus-in-webm, smaller files. */
+/** Pick the highest MP3 bitrate that fits under the byte target. */
+async function encodeMp3BestFit(
+  samples: Int16Array,
+  sampleRate: number,
+  targetBytes: number
+): Promise<{ blob: Blob; kbps: number }> {
+  let smallest: { blob: Blob; kbps: number } | null = null;
+
+  for (let kbps = MP3_KBPS_MAX; kbps >= MP3_KBPS_MIN; kbps -= MP3_KBPS_STEP) {
+    const blob = await encodeMp3(samples, sampleRate, kbps);
+    if (blob.size <= targetBytes) {
+      return { blob, kbps };
+    }
+    if (!smallest || blob.size < smallest.blob.size) {
+      smallest = { blob, kbps };
+    }
+  }
+
+  if (smallest) return smallest;
+  throw new Error("MP3 encoding failed");
+}
+
+/** Fallback when MP3 encoder fails — opus-in-webm, higher efficiency at same quality. */
 async function encodeViaMediaRecorder(
   buffer: AudioBuffer,
   sampleRate: number,
@@ -134,56 +168,80 @@ async function encodeViaMediaRecorder(
   });
 }
 
+async function encodeOpusBestFit(
+  decoded: AudioBuffer,
+  sampleRate: number,
+  targetBytes: number
+): Promise<Blob> {
+  let smallest: Blob | null = null;
+  for (
+    let bps = OPUS_BITS_MAX;
+    bps >= OPUS_BITS_MIN;
+    bps -= 16_000
+  ) {
+    const blob = await encodeViaMediaRecorder(decoded, sampleRate, bps);
+    if (blob.size <= targetBytes) return blob;
+    if (!smallest || blob.size < smallest.size) smallest = blob;
+  }
+  if (smallest) return smallest;
+  throw new Error("Opus encoding failed");
+}
+
 export type CompressResult = {
   file: File;
   compressed: boolean;
   originalSize: number;
   finalSize: number;
+  /** Set when re-encoded (e.g. "128 kbps MP3"). */
+  qualityLabel?: string;
 };
 
 /**
- * Re-encode large MP3/WAV to a smaller file for upload.
+ * Re-encode large audio to the highest quality that fits Vercel/Gemini upload limits.
  */
 export async function compressAudioIfNeeded(file: File): Promise<CompressResult> {
   const originalSize = file.size;
-  if (file.size <= COMPRESS_THRESHOLD_BYTES) {
+  if (file.size <= COMPRESS_TARGET_BYTES) {
     return { file, compressed: false, originalSize, finalSize: file.size };
   }
 
   const decoded = await decodeAudio(file);
-  const sampleRate = 22050;
-  const samples = await resampleToMono(decoded, sampleRate);
+  const samples = await resampleToMono(decoded, SAMPLE_RATE);
 
   let blob: Blob;
   let ext = "mp3";
   let mime = "audio/mpeg";
+  let qualityLabel = "";
 
   try {
-    let kbps = 96;
-    blob = await encodeMp3(samples, sampleRate, kbps);
-    while (blob.size > COMPRESS_THRESHOLD_BYTES && kbps > 32) {
-      kbps -= 16;
-      blob = await encodeMp3(samples, sampleRate, kbps);
-    }
+    const { blob: mp3, kbps } = await encodeMp3BestFit(
+      samples,
+      SAMPLE_RATE,
+      COMPRESS_TARGET_BYTES
+    );
+    blob = mp3;
+    qualityLabel = `${kbps} kbps mono MP3 @ ${SAMPLE_RATE / 1000} kHz`;
   } catch {
-    blob = await encodeViaMediaRecorder(decoded, sampleRate, 48000);
+    blob = await encodeOpusBestFit(decoded, SAMPLE_RATE, COMPRESS_TARGET_BYTES);
     ext = blob.type.includes("ogg") ? "ogg" : "webm";
     mime = blob.type;
+    qualityLabel = `Opus (${ext})`;
   }
 
-  if (blob.size > COMPRESS_THRESHOLD_BYTES) {
+  if (blob.size > UPLOAD_MAX_BYTES) {
     try {
-      blob = await encodeViaMediaRecorder(decoded, sampleRate, 32000);
+      blob = await encodeOpusBestFit(decoded, SAMPLE_RATE, COMPRESS_TARGET_BYTES);
       ext = blob.type.includes("ogg") ? "ogg" : "webm";
       mime = blob.type;
+      qualityLabel = `Opus fallback (${ext})`;
     } catch {
       /* use last blob */
     }
   }
 
-  if (blob.size > COMPRESS_THRESHOLD_BYTES) {
+  if (blob.size > UPLOAD_MAX_BYTES) {
     throw new Error(
-      `Could not compress below ${formatBytes(COMPRESS_THRESHOLD_BYTES)}. Try a shorter clip.`
+      `Could not fit audio under ${formatBytes(UPLOAD_MAX_BYTES)} for upload. Try a shorter clip or lower-resolution source.`
     );
   }
 
@@ -198,6 +256,7 @@ export async function compressAudioIfNeeded(file: File): Promise<CompressResult>
     compressed: true,
     originalSize,
     finalSize: out.size,
+    qualityLabel,
   };
 }
 

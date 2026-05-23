@@ -2,9 +2,12 @@ import logging
 import os
 from pathlib import Path
 
-from app.config import COMPRESS_TARGET_BYTES
+from app.config import COMPRESS_TARGET_BYTES, UPLOAD_MAX_BYTES
 
 logger = logging.getLogger(__name__)
+
+# Highest quality first — stop at first export under target
+_SERVER_BITRATES = ("192k", "160k", "128k", "112k", "96k")
 
 
 def compress_audio_if_needed(path: Path) -> tuple[Path, bool]:
@@ -24,10 +27,23 @@ def compress_audio_if_needed(path: Path) -> tuple[Path, bool]:
 
     try:
         audio = AudioSegment.from_file(str(path))
-        audio = audio.set_channels(1).set_frame_rate(22050)
+        audio = audio.set_channels(1).set_frame_rate(32000)
         out = path.with_name(f"{path.stem}_compressed.mp3")
-        bitrate = "96k" if size > COMPRESS_TARGET_BYTES * 2 else "128k"
-        audio.export(str(out), format="mp3", bitrate=bitrate)
+
+        for bitrate in _SERVER_BITRATES:
+            audio.export(str(out), format="mp3", bitrate=bitrate)
+            if not out.exists():
+                continue
+            out_size = out.stat().st_size
+            if out_size <= UPLOAD_MAX_BYTES and out_size < size:
+                logger.info(
+                    "Server compressed %s -> %s at %s",
+                    size,
+                    out_size,
+                    bitrate,
+                )
+                return out, True
+
         if out.exists() and out.stat().st_size < size:
             return out, True
     except Exception as exc:

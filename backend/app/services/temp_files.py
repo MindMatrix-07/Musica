@@ -27,7 +27,10 @@ async def save_upload_transient(file: UploadFile) -> Path:
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
-        raise ValueError(f"File exceeds maximum size of {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
+        mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+        raise ValueError(
+            f"File exceeds {mb} MB upload limit. Re-upload — the browser will compress at higher quality when possible."
+        )
     if len(content) == 0:
         raise ValueError("Empty file")
 

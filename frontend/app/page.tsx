@@ -139,14 +139,21 @@ export default function DashboardPage() {
       setCurrentPass(null);
 
       try {
-        const { file: uploadFile, compressed, originalSize, finalSize } =
-          await compressAudioIfNeeded(audioFile);
+        const {
+          file: uploadFile,
+          compressed,
+          originalSize,
+          finalSize,
+          qualityLabel,
+        } = await compressAudioIfNeeded(audioFile);
 
         if (compressed) {
           setStreamEvents([
             {
               type: "status",
-              message: `Compressed ${formatBytes(originalSize)} → ${formatBytes(finalSize)}`,
+              message: `Compressed ${formatBytes(originalSize)} → ${formatBytes(finalSize)}${
+                qualityLabel ? ` · ${qualityLabel}` : ""
+              }`,
             },
           ]);
         }
