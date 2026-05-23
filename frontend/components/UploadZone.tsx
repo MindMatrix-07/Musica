@@ -3,7 +3,17 @@
 import { useCallback, useRef, useState } from "react";
 
 const MAX_BYTES = 50 * 1024 * 1024;
-const ACCEPT = ["audio/mpeg", "audio/wav", "audio/x-wav", ".mp3", ".wav"];
+const ACCEPT = [
+  "audio/mpeg",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+  "audio/ogg",
+  ".mp3",
+  ".wav",
+  ".webm",
+  ".ogg",
+];
 
 interface UploadZoneProps {
   onFileSelect: (file: File) => void;
@@ -23,8 +33,9 @@ export function UploadZone({
 
   const validate = useCallback((file: File) => {
     const ext = file.name.toLowerCase();
-    if (!ext.endsWith(".mp3") && !ext.endsWith(".wav")) {
-      return "Only MP3 and WAV files are supported.";
+    const ok = [".mp3", ".wav", ".webm", ".ogg"].some((e) => ext.endsWith(e));
+    if (!ok) {
+      return "Supported formats: MP3, WAV, WebM, OGG.";
     }
     if (file.size > MAX_BYTES) {
       return "File must be 50 MB or smaller.";

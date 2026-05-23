@@ -66,7 +66,7 @@ async def curate_endpoint(
     if file.content_type and file.content_type not in ALLOWED_MIME_TYPES:
         # Allow if extension is valid (browsers vary on MIME)
         ext = Path(file.filename or "").suffix.lower()
-        if ext not in {".mp3", ".wav"}:
+        if ext not in {".mp3", ".wav", ".webm", ".ogg"}:
             raise HTTPException(
                 status_code=400,
                 detail=f"Unsupported content type: {file.content_type}",

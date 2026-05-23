@@ -23,13 +23,16 @@ MAX_USER_PROMPT_CHARS = 2000
 
 # Compress before Gemini when larger than this (bytes)
 COMPRESS_TARGET_BYTES = 4 * 1024 * 1024
-ALLOWED_EXTENSIONS = {".mp3", ".wav"}
+ALLOWED_EXTENSIONS = {".mp3", ".wav", ".webm", ".ogg"}
 ALLOWED_MIME_TYPES = {
     "audio/mpeg",
     "audio/mp3",
     "audio/wav",
     "audio/x-wav",
     "audio/wave",
+    "audio/webm",
+    "audio/ogg",
+    "application/ogg",
 }
 
 DEFAULT_MODEL = "gemini-2.5-flash"
