@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
 from app.config import (
     ALLOWED_MIME_TYPES,
@@ -12,7 +13,7 @@ from app.config import (
     MODEL_FAST,
 )
 from app.services.audio_compress import cleanup_compressed, compress_audio_if_needed
-from app.services.gemini_curator import curate_audio
+from app.services.gemini_curator import curate_audio, curate_audio_stream, format_sse
 from app.services.grounding import ensure_grounding_files
 from app.services.temp_files import delete_file, purge_stale_temp, save_upload_transient
 
@@ -105,3 +106,73 @@ async def curate_endpoint(
             cleanup_compressed(audio_path, temp_path)
         if temp_path:
             delete_file(temp_path)
+
+
+@router.post("/curate/stream")
+async def curate_stream_endpoint(
+    file: UploadFile = File(...),
+    model: str = Form(default=MODEL_FAST),
+    temperature: float = Form(default=DEFAULT_TEMPERATURE),
+    user_prompt: str = Form(default=""),
+    split_structure: str = Form(default="true"),
+    x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
+):
+    """Server-Sent Events stream of live Gemini curation (Google AI Studio)."""
+    purge_stale_temp()
+    ensure_grounding_files()
+    api_key = _resolve_api_key(x_gemini_api_key)
+    prompt = _normalize_user_prompt(user_prompt)
+    use_split = split_structure.lower() in {"true", "1", "yes", "on"}
+
+    if model not in {MODEL_FAST, MODEL_DEEP, "gemini-3.5-flash", "gemini-1.5-pro"}:
+        model = DEFAULT_MODEL
+
+    if file.content_type and file.content_type not in ALLOWED_MIME_TYPES:
+        ext = Path(file.filename or "").suffix.lower()
+        if ext not in {".mp3", ".wav", ".webm", ".ogg"}:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported content type: {file.content_type}",
+            )
+
+    try:
+        temp_path = await save_upload_transient(file)
+        audio_path, compressed = compress_audio_if_needed(temp_path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    def event_generator():
+        try:
+            if compressed:
+                yield format_sse(
+                    {
+                        "type": "status",
+                        "message": "Server compressed audio for upload",
+                    }
+                )
+            for event in curate_audio_stream(
+                audio_path,
+                model=model,
+                temperature=temperature,
+                api_key=api_key,
+                user_prompt=prompt,
+                split_structure=use_split,
+            ):
+                if event.get("type") == "done":
+                    event["compressed"] = compressed
+                yield format_sse(event)
+        except Exception as exc:
+            yield format_sse({"type": "error", "message": str(exc)})
+        finally:
+            cleanup_compressed(audio_path, temp_path)
+            delete_file(temp_path)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

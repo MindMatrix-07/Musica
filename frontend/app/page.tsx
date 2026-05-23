@@ -4,10 +4,16 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { ConfigPanel } from "@/components/ConfigPanel";
+import { CurationLiveFeed } from "@/components/CurationLiveFeed";
+import { LyricsPanel } from "@/components/LyricsPanel";
+import { MusicPlayerHero } from "@/components/MusicPlayerHero";
 import { PromptBox } from "@/components/PromptBox";
-import { ResultsViewer } from "@/components/ResultsViewer";
-import { UploadZone } from "@/components/UploadZone";
-import { curateAudio, type CurateModel, type CurateResponse } from "@/lib/api";
+import {
+  curateAudioStream,
+  type CurateModel,
+  type CurateStreamEvent,
+  type StreamPass,
+} from "@/lib/api";
 import {
   compressAudioIfNeeded,
   formatBytes,
@@ -21,20 +27,19 @@ const TEMPERATURE = 0.1;
 export default function DashboardPage() {
   const [model, setModel] = useState<CurateModel>("gemini-3.5-flash");
   const [file, setFile] = useState<File | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [markdown, setMarkdown] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [apiKeyReady, setApiKeyReady] = useState(false);
   const [userPrompt, setUserPrompt] = useState("");
   const [splitStructure, setSplitStructure] = useState(true);
-  const [statusNote, setStatusNote] = useState<string | null>(null);
-  const [lastMeta, setLastMeta] = useState<Pick<
-    CurateResponse,
-    "pipeline" | "compressed"
-  > | null>(null);
+  const [streamEvents, setStreamEvents] = useState<CurateStreamEvent[]>([]);
+  const [liveText, setLiveText] = useState("");
+  const [currentPass, setCurrentPass] = useState<StreamPass | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setUserPrompt(getStoredPrompt());
@@ -62,70 +67,109 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const onFileSelect = useCallback(
-    async (selected: File) => {
+  const loadFile = useCallback(
+    (selected: File) => {
       setFile(selected);
+      setFileName(selected.name);
       setError(null);
       setMarkdown(null);
+      setStreamEvents([]);
+      setLiveText("");
+      setCurrentPass(null);
 
-      if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current);
-      }
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       const url = URL.createObjectURL(selected);
       audioUrlRef.current = url;
       setAudioUrl(url);
+    },
+    []
+  );
+
+  const runCuration = useCallback(
+    async (targetFile?: File) => {
+      const audioFile = targetFile ?? file;
+      if (!audioFile || !hasApiKey()) return;
 
       setProcessing(true);
-      setProgress(2);
-      setStatusNote(null);
-      setLastMeta(null);
+      setError(null);
+      setMarkdown(null);
+      setStreamEvents([]);
+      setLiveText("");
+      setCurrentPass(null);
 
       try {
-        setProgress(8);
-        setStatusNote("Checking audio size…");
         const { file: uploadFile, compressed, originalSize, finalSize } =
-          await compressAudioIfNeeded(selected);
-        if (compressed) {
-          setStatusNote(
-            `Compressed ${formatBytes(originalSize)} → ${formatBytes(finalSize)} for upload`
-          );
-        }
+          await compressAudioIfNeeded(audioFile);
 
-        setProgress(15);
-        const result = await curateAudio(uploadFile, {
-          model,
-          temperature: TEMPERATURE,
-          userPrompt,
-          splitStructure,
-          onProgress: (p) => setProgress(Math.max(15, p)),
-        });
+      if (compressed) {
+        setStreamEvents([
+          {
+            type: "status",
+            message: `Compressed ${formatBytes(originalSize)} → ${formatBytes(finalSize)}`,
+          },
+        ]);
+      }
+
+      const result = await curateAudioStream(uploadFile, {
+        model,
+        temperature: TEMPERATURE,
+        userPrompt,
+        splitStructure,
+        onEvent: (event) => {
+          setStreamEvents((prev) => [...prev, event]);
+          if (event.type === "pass_start") {
+            setCurrentPass(event.pass);
+            setLiveText("");
+          }
+          if (event.type === "chunk") {
+            setCurrentPass(event.pass);
+            setLiveText((t) => t + event.text);
+          }
+          if (event.type === "pass_end") {
+            setLiveText("");
+          }
+          if (event.type === "done") {
+            setMarkdown(event.markdown);
+            setCurrentPass(null);
+            setLiveText("");
+          }
+        },
+      });
+
         setMarkdown(result.markdown);
-        setLastMeta({
-          pipeline: result.pipeline,
-          compressed: result.compressed || compressed,
-        });
-        if (result.pipeline?.length) {
-          setStatusNote(`Pipeline: ${result.pipeline.join(" → ")}`);
-        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
       } finally {
         setProcessing(false);
-        setProgress(null);
       }
     },
-    [model, userPrompt, splitStructure]
+    [file, model, userPrompt, splitStructure]
+  );
+
+  const onFileInput = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      loadFile(f);
+      if (hasApiKey()) {
+        await runCuration(f);
+      }
+    },
+    [loadFile, runCuration]
   );
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+    <main className="mx-auto min-h-screen max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <AppHeader />
 
-      <p className="-mt-4 mb-8 max-w-2xl text-sm text-foreground/50">
-        Two-pass curation: Gemini writes lyrics, then a structure-only pass
-        tags [Verse]/[Chorus] using web + extended Musixmatch guidelines
-        together. Large files are compressed in-browser before upload.
-      </p>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".mp3,.wav,.webm,.ogg,audio/*"
+        className="hidden"
+        onChange={onFileInput}
+      />
 
       {!apiKeyReady && (
         <div
@@ -136,59 +180,78 @@ export default function DashboardPage() {
           <Link href="/settings" className="font-medium underline">
             Settings
           </Link>{" "}
-          before uploading audio.
+          to enable curation.
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-1">
-          <PromptBox
-            value={userPrompt}
-            onChange={setUserPrompt}
-            disabled={processing}
-          />
-          <UploadZone
-            onFileSelect={onFileSelect}
-            disabled={processing || !apiKeyReady}
-            progress={processing ? progress : null}
-          />
-          <ConfigPanel
-            model={model}
-            onModelChange={setModel}
-            temperature={TEMPERATURE}
-            splitStructure={splitStructure}
-            onSplitStructureChange={setSplitStructure}
-            disabled={processing}
-          />
-          {statusNote && (
-            <p className="text-xs text-foreground/45">{statusNote}</p>
-          )}
-          {file && !processing && (
-            <button
-              type="button"
-              onClick={() => onFileSelect(file)}
-              className="w-full rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/60 hover:bg-accent/10"
-            >
-              Re-run curation with current settings
-            </button>
-          )}
-        </div>
+      <div className="space-y-6">
+        <MusicPlayerHero
+          audioUrl={audioUrl}
+          fileName={fileName}
+          onUploadClick={() => fileInputRef.current?.click()}
+          onCurate={() => runCuration()}
+          canCurate={apiKeyReady}
+          processing={processing}
+          disabled={!apiKeyReady}
+        />
 
-        <div className="lg:col-span-2">
-          {error && (
-            <div
-              className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-              role="alert"
-            >
-              {error}
-            </div>
-          )}
-          <ResultsViewer audioUrl={audioUrl} markdown={markdown} />
-        </div>
+        <CurationLiveFeed
+          active={processing}
+          events={streamEvents}
+          liveText={liveText}
+          currentPass={currentPass}
+        />
+
+        <LyricsPanel markdown={markdown} processing={processing} />
+
+        <details className="glass-panel group open:pb-5">
+          <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium text-foreground/80 marker:content-none [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center justify-between">
+              Options & instructions
+              <span className="text-foreground/40 transition group-open:rotate-180">
+                ▾
+              </span>
+            </span>
+          </summary>
+          <div className="space-y-4 border-t border-white/10 px-5 pt-4">
+            <PromptBox
+              value={userPrompt}
+              onChange={setUserPrompt}
+              disabled={processing}
+            />
+            <ConfigPanel
+              model={model}
+              onModelChange={setModel}
+              temperature={TEMPERATURE}
+              splitStructure={splitStructure}
+              onSplitStructureChange={setSplitStructure}
+              disabled={processing}
+            />
+            {file && !processing && (
+              <button
+                type="button"
+                onClick={() => runCuration()}
+                disabled={!apiKeyReady}
+                className="w-full rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/60 hover:bg-accent/10 disabled:opacity-40"
+              >
+                Re-run curation
+              </button>
+            )}
+          </div>
+        </details>
       </div>
 
-      <footer className="mt-12 text-center text-xs text-foreground/30">
-        Grounded on{" "}
+      {error && (
+        <div
+          className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
+
+      <footer className="mt-10 text-center text-xs text-foreground/30">
+        Powered by Google AI Studio (Gemini) ·{" "}
         <a
           href="https://community.musixmatch.com/guidelines?lng=en"
           className="underline hover:text-foreground/50"
@@ -197,8 +260,6 @@ export default function DashboardPage() {
         >
           Musixmatch Guidelines
         </a>
-        {" · "}
-        API key configured in Settings (browser local storage)
       </footer>
     </main>
   );

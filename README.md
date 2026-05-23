@@ -171,6 +171,12 @@ Musica/
 
 ---
 
+## UI overview
+
+- **Music player first** — upload, listen, then curate from the hero player
+- **Live feed** — streams Gemini status and tokens via `/api/curate/stream` (Google AI Studio SSE)
+- **Copy lyrics** — one-click copy on the lyrics panel
+
 ## Two-pass curation (recommended)
 
 Gemini is strong at **lyric transcription** but weaker at **structure tagging**. Musica uses:
