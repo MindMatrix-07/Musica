@@ -31,7 +31,7 @@ cd c:\Users\HP\Documents\Musica\backend
 py -3 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # Create placeholder extended PDF (replace with official export later)
 python scripts\generate_extended_pdf.py
@@ -178,7 +178,7 @@ This repo uses **[Vercel Services](https://vercel.com/docs/services)** via root 
 | Service | Path | Entry |
 |---------|------|--------|
 | **frontend** | `/` | `frontend/` (Next.js) |
-| **backend** | `/api` | `backend/app/main.py` (FastAPI) |
+| **backend** | `/api` | `backend/app/main.py` (FastAPI, deps via `backend/requirements.txt`) |
 
 ### Steps
 
