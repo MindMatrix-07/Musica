@@ -22,8 +22,13 @@ import {
 } from "@/lib/compress-audio";
 import { getSplitStructure } from "@/lib/pipeline";
 import { getStoredPrompt, setStoredPrompt } from "@/lib/prompt";
+import { createUiBatcher } from "@/lib/ui-batch";
 
 const TEMPERATURE = 0.1;
+
+function isFeedEvent(event: CurateStreamEvent): boolean {
+  return event.type !== "chunk";
+}
 
 export default function DashboardPage() {
   const [model, setModel] = useState<CurateModel>("gemini-3.5-flash");
@@ -34,14 +39,30 @@ export default function DashboardPage() {
   const [lyricsPhase, setLyricsPhase] = useState<LyricsPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [apiKeyReady, setApiKeyReady] = useState(false);
   const [userPrompt, setUserPrompt] = useState("");
   const [splitStructure, setSplitStructure] = useState(true);
   const [streamEvents, setStreamEvents] = useState<CurateStreamEvent[]>([]);
   const [liveText, setLiveText] = useState("");
   const [currentPass, setCurrentPass] = useState<StreamPass | null>(null);
+
   const audioUrlRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const markdownBufRef = useRef("");
+  const liveTextBufRef = useRef("");
+  const splitStructureRef = useRef(splitStructure);
+
+  const uiBatcherRef = useRef(
+    createUiBatcher(() => {
+      setMarkdown(markdownBufRef.current);
+      setLiveText(liveTextBufRef.current);
+    }, 180)
+  );
+
+  useEffect(() => {
+    splitStructureRef.current = splitStructure;
+  }, [splitStructure]);
 
   useEffect(() => {
     setUserPrompt(getStoredPrompt());
@@ -70,10 +91,13 @@ export default function DashboardPage() {
   }, []);
 
   const handleStreamEvent = useCallback((event: CurateStreamEvent) => {
-    setStreamEvents((prev) => [...prev, event]);
+    if (isFeedEvent(event)) {
+      setStreamEvents((prev) => [...prev, event]);
+    }
 
     if (event.type === "pass_start") {
       setCurrentPass(event.pass);
+      liveTextBufRef.current = "";
       setLiveText("");
       if (event.pass === "structure") {
         setLyricsPhase("structuring");
@@ -84,30 +108,42 @@ export default function DashboardPage() {
       setCurrentPass(event.pass);
       if (event.pass === "transcription" || event.pass === "single-pass") {
         setLyricsPhase("transcription");
-        setMarkdown((prev) => (prev ?? "") + event.text);
-        setLiveText((t) => t + event.text);
+        markdownBufRef.current += event.text;
+        liveTextBufRef.current += event.text;
+        uiBatcherRef.current.schedule();
       } else if (event.pass === "structure") {
-        setLiveText((t) => t + event.text);
+        liveTextBufRef.current += event.text;
+        uiBatcherRef.current.schedule();
       }
     }
 
     if (event.type === "pass_end") {
+      uiBatcherRef.current.flushNow();
       if (event.pass === "transcription" || event.pass === "single-pass") {
-        if (event.draft) setMarkdown(event.draft);
-        setLyricsPhase(splitStructure ? "structuring" : "done");
+        if (event.draft) {
+          markdownBufRef.current = event.draft;
+          setMarkdown(event.draft);
+        }
+        setLyricsPhase(
+          splitStructureRef.current ? "structuring" : "done"
+        );
       }
       if (event.pass === "structure") {
+        liveTextBufRef.current = "";
         setLiveText("");
       }
     }
 
     if (event.type === "done") {
+      uiBatcherRef.current.flushNow();
+      markdownBufRef.current = event.markdown;
       setMarkdown(event.markdown);
       setLyricsPhase("done");
       setCurrentPass(null);
+      liveTextBufRef.current = "";
       setLiveText("");
     }
-  }, [splitStructure]);
+  }, []);
 
   const loadFile = useCallback((selected: File) => {
     setFile(selected);
@@ -118,6 +154,8 @@ export default function DashboardPage() {
     setStreamEvents([]);
     setLiveText("");
     setCurrentPass(null);
+    markdownBufRef.current = "";
+    liveTextBufRef.current = "";
 
     if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     const url = URL.createObjectURL(selected);
@@ -131,7 +169,10 @@ export default function DashboardPage() {
       if (!audioFile || !hasActiveApiKey()) return;
 
       setProcessing(true);
+      setPreparing(true);
       setError(null);
+      markdownBufRef.current = "";
+      liveTextBufRef.current = "";
       setMarkdown("");
       setLyricsPhase("transcription");
       setStreamEvents([]);
@@ -146,6 +187,8 @@ export default function DashboardPage() {
           finalSize,
           qualityLabel,
         } = await compressAudioIfNeeded(audioFile);
+
+        setPreparing(false);
 
         if (compressed) {
           setStreamEvents([
@@ -166,12 +209,15 @@ export default function DashboardPage() {
           onEvent: handleStreamEvent,
         });
 
+        uiBatcherRef.current.flushNow();
+        markdownBufRef.current = result.markdown;
         setMarkdown(result.markdown);
         setLyricsPhase("done");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
         setLyricsPhase("idle");
       } finally {
+        setPreparing(false);
         setProcessing(false);
       }
     },
@@ -190,6 +236,8 @@ export default function DashboardPage() {
     },
     [loadFile, runCuration]
   );
+
+  const busy = processing || preparing;
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
@@ -223,12 +271,13 @@ export default function DashboardPage() {
           onUploadClick={() => fileInputRef.current?.click()}
           onCurate={() => runCuration()}
           canCurate={apiKeyReady}
-          processing={processing}
+          processing={busy}
+          preparing={preparing}
           disabled={!apiKeyReady}
         />
 
         <CurationLiveFeed
-          active={processing}
+          active={busy}
           events={streamEvents}
           liveText={liveText}
           currentPass={currentPass}
@@ -236,7 +285,7 @@ export default function DashboardPage() {
 
         <LyricsPanel
           markdown={markdown}
-          processing={processing}
+          processing={busy}
           phase={lyricsPhase}
         />
 
@@ -253,7 +302,7 @@ export default function DashboardPage() {
             <PromptBox
               value={userPrompt}
               onChange={setUserPrompt}
-              disabled={processing}
+              disabled={busy}
             />
             <ConfigPanel
               model={model}
@@ -261,9 +310,9 @@ export default function DashboardPage() {
               temperature={TEMPERATURE}
               splitStructure={splitStructure}
               onSplitStructureChange={setSplitStructure}
-              disabled={processing}
+              disabled={busy}
             />
-            {file && !processing && (
+            {file && !busy && (
               <button
                 type="button"
                 onClick={() => runCuration()}

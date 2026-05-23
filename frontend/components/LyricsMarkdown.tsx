@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { isStructureTagLine } from "@/lib/lyrics";
 
 interface LyricsMarkdownProps {
@@ -19,7 +20,9 @@ function LineWithBadge({ line }: { line: string }) {
   return <p className="my-0.5 leading-relaxed text-foreground/85">{line || "\u00A0"}</p>;
 }
 
-export function LyricsMarkdown({ markdown }: LyricsMarkdownProps) {
+export const LyricsMarkdown = memo(function LyricsMarkdown({
+  markdown,
+}: LyricsMarkdownProps) {
   const lines = markdown.split("\n");
 
   return (
@@ -29,4 +32,4 @@ export function LyricsMarkdown({ markdown }: LyricsMarkdownProps) {
       ))}
     </div>
   );
-}
+});

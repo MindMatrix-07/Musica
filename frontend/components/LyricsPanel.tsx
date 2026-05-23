@@ -19,6 +19,7 @@ const PHASE_LABEL: Record<LyricsPhase, string> = {
 
 export function LyricsPanel({ markdown, processing, phase }: LyricsPanelProps) {
   const [copied, setCopied] = useState(false);
+  const showFormatted = phase === "done" && Boolean(markdown);
 
   const copyLyrics = async () => {
     if (!markdown) return;
@@ -64,7 +65,13 @@ export function LyricsPanel({ markdown, processing, phase }: LyricsPanelProps) {
 
       <div className="flex-1 overflow-y-auto p-5">
         {markdown ? (
-          <LyricsMarkdown markdown={markdown} />
+          showFormatted ? (
+            <LyricsMarkdown markdown={markdown} />
+          ) : (
+            <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed text-foreground/85">
+              {markdown}
+            </pre>
+          )
         ) : processing ? (
           <p className="text-sm text-foreground/45">
             Waiting for transcription…

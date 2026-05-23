@@ -1,3 +1,5 @@
+import { yieldToMain } from "@/lib/ui-batch";
+
 /**
  * Upload limits (align with backend/app/config.py on Vercel).
  * Vercel request body ~4.5 MB; server accepts up to 4 MB file bytes.
@@ -12,6 +14,7 @@ const MP3_KBPS_MIN = 88;
 const MP3_KBPS_STEP = 8;
 const OPUS_BITS_MAX = 128_000;
 const OPUS_BITS_MIN = 64_000;
+const ENCODE_YIELD_EVERY_BLOCKS = 64;
 
 function floatTo16BitPCM(input: Float32Array): Int16Array {
   const out = new Int16Array(input.length);
@@ -34,10 +37,20 @@ function mixToMono(buffer: AudioBuffer): Float32Array {
   return mono;
 }
 
+function estimateMp3Kbps(durationSec: number, targetBytes: number): number {
+  if (durationSec <= 0) return MP3_KBPS_MAX;
+  const raw = Math.floor((targetBytes * 8) / durationSec / 1000);
+  const stepped =
+    Math.round(Math.min(MP3_KBPS_MAX, Math.max(MP3_KBPS_MIN, raw)) / MP3_KBPS_STEP) *
+    MP3_KBPS_STEP;
+  return stepped;
+}
+
 async function decodeAudio(file: File): Promise<AudioBuffer> {
   const ctx = new AudioContext();
   try {
     const arrayBuffer = await file.arrayBuffer();
+    await yieldToMain();
     return await ctx.decodeAudioData(arrayBuffer.slice(0));
   } finally {
     await ctx.close();
@@ -77,6 +90,9 @@ async function encodeMp3(
   const chunks: Uint8Array[] = [];
 
   for (let i = 0; i < samples.length; i += block) {
+    if (i > 0 && (i / block) % ENCODE_YIELD_EVERY_BLOCKS === 0) {
+      await yieldToMain();
+    }
     const slice = samples.subarray(i, i + block);
     const buf = encoder.encodeBuffer(slice);
     if (buf.length > 0) chunks.push(buf);
@@ -97,15 +113,18 @@ async function encodeMp3(
   return new Blob([merged], { type: "audio/mpeg" });
 }
 
-/** Pick the highest MP3 bitrate that fits under the byte target. */
+/** Estimate bitrate, encode at most a few times, yield between attempts. */
 async function encodeMp3BestFit(
   samples: Int16Array,
   sampleRate: number,
-  targetBytes: number
+  targetBytes: number,
+  durationSec: number
 ): Promise<{ blob: Blob; kbps: number }> {
+  let kbps = estimateMp3Kbps(durationSec, targetBytes);
   let smallest: { blob: Blob; kbps: number } | null = null;
 
-  for (let kbps = MP3_KBPS_MAX; kbps >= MP3_KBPS_MIN; kbps -= MP3_KBPS_STEP) {
+  for (let attempt = 0; attempt < 4 && kbps >= MP3_KBPS_MIN; attempt++) {
+    await yieldToMain();
     const blob = await encodeMp3(samples, sampleRate, kbps);
     if (blob.size <= targetBytes) {
       return { blob, kbps };
@@ -113,13 +132,13 @@ async function encodeMp3BestFit(
     if (!smallest || blob.size < smallest.blob.size) {
       smallest = { blob, kbps };
     }
+    kbps -= MP3_KBPS_STEP;
   }
 
   if (smallest) return smallest;
   throw new Error("MP3 encoding failed");
 }
 
-/** Fallback when MP3 encoder fails — opus-in-webm, higher efficiency at same quality. */
 async function encodeViaMediaRecorder(
   buffer: AudioBuffer,
   sampleRate: number,
@@ -173,15 +192,21 @@ async function encodeOpusBestFit(
   sampleRate: number,
   targetBytes: number
 ): Promise<Blob> {
+  const durationSec = decoded.duration;
+  const estimated =
+    Math.min(
+      OPUS_BITS_MAX,
+      Math.max(OPUS_BITS_MIN, Math.floor((targetBytes * 8) / durationSec))
+    ) || OPUS_BITS_MAX;
+
+  let bps = estimated;
   let smallest: Blob | null = null;
-  for (
-    let bps = OPUS_BITS_MAX;
-    bps >= OPUS_BITS_MIN;
-    bps -= 16_000
-  ) {
+  for (let attempt = 0; attempt < 3 && bps >= OPUS_BITS_MIN; attempt++) {
+    await yieldToMain();
     const blob = await encodeViaMediaRecorder(decoded, sampleRate, bps);
     if (blob.size <= targetBytes) return blob;
     if (!smallest || blob.size < smallest.size) smallest = blob;
+    bps -= 24_000;
   }
   if (smallest) return smallest;
   throw new Error("Opus encoding failed");
@@ -192,20 +217,18 @@ export type CompressResult = {
   compressed: boolean;
   originalSize: number;
   finalSize: number;
-  /** Set when re-encoded (e.g. "128 kbps MP3"). */
   qualityLabel?: string;
 };
 
-/**
- * Re-encode large audio to the highest quality that fits Vercel/Gemini upload limits.
- */
 export async function compressAudioIfNeeded(file: File): Promise<CompressResult> {
   const originalSize = file.size;
   if (file.size <= COMPRESS_TARGET_BYTES) {
     return { file, compressed: false, originalSize, finalSize: file.size };
   }
 
+  await yieldToMain();
   const decoded = await decodeAudio(file);
+  const durationSec = decoded.duration;
   const samples = await resampleToMono(decoded, SAMPLE_RATE);
 
   let blob: Blob;
@@ -217,11 +240,13 @@ export async function compressAudioIfNeeded(file: File): Promise<CompressResult>
     const { blob: mp3, kbps } = await encodeMp3BestFit(
       samples,
       SAMPLE_RATE,
-      COMPRESS_TARGET_BYTES
+      COMPRESS_TARGET_BYTES,
+      durationSec
     );
     blob = mp3;
     qualityLabel = `${kbps} kbps mono MP3 @ ${SAMPLE_RATE / 1000} kHz`;
   } catch {
+    await yieldToMain();
     blob = await encodeOpusBestFit(decoded, SAMPLE_RATE, COMPRESS_TARGET_BYTES);
     ext = blob.type.includes("ogg") ? "ogg" : "webm";
     mime = blob.type;

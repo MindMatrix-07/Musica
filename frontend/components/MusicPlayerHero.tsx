@@ -9,6 +9,7 @@ interface MusicPlayerHeroProps {
   onCurate: () => void;
   canCurate: boolean;
   processing: boolean;
+  preparing?: boolean;
   disabled?: boolean;
 }
 
@@ -19,6 +20,7 @@ export function MusicPlayerHero({
   onCurate,
   canCurate,
   processing,
+  preparing,
   disabled,
 }: MusicPlayerHeroProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -69,7 +71,11 @@ export function MusicPlayerHero({
                   onClick={onCurate}
                   className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-violet-950 transition hover:bg-fuchsia-100 disabled:opacity-40"
                 >
-                  {processing ? "Curating…" : "Curate lyrics"}
+                  {preparing
+                    ? "Compressing…"
+                    : processing
+                      ? "Curating…"
+                      : "Curate lyrics"}
                 </button>
                 <button
                   type="button"
