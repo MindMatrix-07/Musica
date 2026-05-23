@@ -1,0 +1,39 @@
+MUSIXMATCH OFFICIAL LYRICS GUIDELINES (Web Summary)
+Source: https://community.musixmatch.com/guidelines?lng=en
+
+=== 1. TRANSCRIBE ===
+- Listen to the whole song; transcribe all vocal content yourself (no copy-paste).
+- Include extra-lyrical vocals: producer tags, backing vocals, live interjections.
+- NO multipliers: repeat every line in full (never "x2" or "(X5)").
+- #INSTRUMENTAL: use when 15+ consecutive seconds without lyrics (see Tag Structure).
+- Expletives: transcribe as heard; use hyphen for audio-censored words (f-), never asterisk censoring.
+- Do NOT transcribe: structure/artist labels, sound effects, descriptions.
+- Vocalizations: include in moderation when stylistically/rhythmically significant.
+- Use original scripts for non-Latin languages; follow Romanization policy when applicable.
+- Sensitive content (hate speech, slurs, incitement, etc.): flag with community before saving.
+
+=== 2. FORMAT ===
+- Structure sections; max 10 lines per section.
+- Capitalize first letter of each line and proper nouns; no erratic caps or ALL CAPS emphasis.
+- Numbers: numerals except one through ten; phone numbers, dates, decades numerically.
+- End-line punctuation: no commas or periods at line end; ? ! hyphens ellipses sparingly OK.
+- Standardized slang: Ballin', 'Cause, Cuz, 'Em, Gon'/Gonna, I'ma, Outta, 'Til, Yo, Yo'.
+- Direct speech: She said, "Do it like this"
+
+=== 3. SYNC ===
+- Sync when first letter of line is sung; tight sync, no breath gaps.
+- Review line-by-line; minimum sync time = song duration.
+
+=== 4. TAG STRUCTURE ===
+Tags: #INTRO #VERSE #PRE-CHORUS #CHORUS #HOOK #BRIDGE #OUTRO
+- Tag each section after listening to whole song.
+- #INSTRUMENTAL between structure tags only (not within a section, not at start/end).
+- Empty line after #INSTRUMENTAL before next structure tag.
+
+=== 5. TAG PERFORMERS (reference) ===
+- Tag individual stage names, not band names.
+- Misc: #fanchant #voice-over #backing vocalist #robotic vocal
+
+=== 6. TRANSLATE (reference) ===
+- Line-by-line; one translated line per source line.
+- Keep tone; keep untranslatable brands/names as-is.

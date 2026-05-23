@@ -1,0 +1,26 @@
+MUSIXMATCH EXTENDED CURATION GUIDELINES (Placeholder)
+Replace musixmatch_extended_guidelines.pdf with the official export from:
+https://docs.google.com/document/d/1njyoifp2cyG-IQu0495eX1Mo0Hp2qy-vl4IeHX0DSCw/preview
+
+=== EXTENDED POLICY NOTES ===
+
+STRUCTURAL INTEGRITY
+- Every audible vocal must appear in order; never skip ad-libs that are part of the performance.
+- Section tags reflect musical/lyrical shifts, not arbitrary line counts.
+- When the same section type repeats (e.g., second chorus), number tags: [Verse 2], [Chorus 2].
+
+FORMATTING DEPTH
+- Parentheses for parallel backing vocals on the same rhythmic slot as lead.
+- Lowercase parenthetical lines for non-lexical vocal hooks that carry melodic weight.
+- Avoid stage directions, crowd labels, or credit lines in the lyric body.
+
+INSTRUMENTAL HANDLING
+- 15+ seconds without sung lyrics → #INSTRUMENTAL between two structure sections.
+- Never open or close a song with #INSTRUMENTAL alone.
+
+QUALITY BAR
+- Prefer accuracy over speed; re-listen to ambiguous passages.
+- Harmonize bracket tags [Chorus] with Musixmatch hash tags (#CHORUS) only when exporting to Studio format; for this app output bracket tags per project spec.
+
+SENSITIVE CONTENT
+- Escalate ambiguous slurs or hate-adjacent phrases; do not silently omit without policy review.

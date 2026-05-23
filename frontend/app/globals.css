@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #08080b;
+  --foreground: #e8e8ed;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  min-height: 100vh;
+}
+
+@layer components {
+  .glass-panel {
+    @apply rounded-2xl border border-surface-border bg-surface-raised/80 backdrop-blur-md;
+  }
+
+  .tag-badge {
+    @apply inline-block rounded-md border border-accent/40 bg-accent/15 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-accent;
+  }
+}
+
+/* Markdown lyric styling */
+.lyrics-markdown h1,
+.lyrics-markdown h2,
+.lyrics-markdown h3 {
+  color: rgb(232 232 237 / 0.9);
+}
+
+.lyrics-markdown p {
+  line-height: 1.625;
+  color: rgb(232 232 237 / 0.85);
+}
+
+.lyrics-markdown strong {
+  color: var(--foreground);
+}
