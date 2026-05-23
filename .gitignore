@@ -1,17 +1,11 @@
-# Python
-backend/.venv/
-backend/tmp_uploads/
-backend/__pycache__/
-**/__pycache__/
-*.py[cod]
-.env
-backend/.env
-
-# Node
-frontend/node_modules/
-frontend/.next/
-frontend/.env.local
-
-# OS
+node_modules/
+build/*
+!build/icon.ico
+!build/icon.png
+!build/icon-256.png
+dist/
+coverage/
 .DS_Store
-Thumbs.db
+*.log
+.env*
+!.env.example

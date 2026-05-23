@@ -1,0 +1,9 @@
+{
+  "appId": "com.musica.app",
+  "appName": "Musica",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

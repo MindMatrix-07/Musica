@@ -1,0 +1,36 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="aurora" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(288 198) rotate(48) scale(884)">
+      <stop stop-color="#54f2d5"/>
+      <stop offset="0.42" stop-color="#c084fc"/>
+      <stop offset="0.72" stop-color="#ff5ca8"/>
+      <stop offset="1" stop-color="#ffb86b"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="237" y1="270" x2="772" y2="789" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="0.47" stop-color="#f5e9ff"/>
+      <stop offset="1" stop-color="#b9fff2"/>
+    </linearGradient>
+    <filter id="glow" x="116" y="100" width="792" height="828" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="24"/>
+      <feGaussianBlur stdDeviation="36"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.752941 0 0 0 0 0.517647 0 0 0 0 0.988235 0 0 0 0.5 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_2"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_2" result="shape"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="236" fill="#09070d"/>
+  <rect x="42" y="42" width="940" height="940" rx="210" fill="url(#aurora)" opacity="0.92"/>
+  <rect x="91" y="91" width="842" height="842" rx="180" fill="#0d0a14" opacity="0.88"/>
+  <path d="M204 631C255 558 303 522 347 522C415 522 423 603 482 603C542 603 547 421 660 421C718 421 765 468 820 562" stroke="#54f2d5" stroke-width="42" stroke-linecap="round" opacity="0.42"/>
+  <g filter="url(#glow)">
+    <path d="M287 742V333C287 294 331 271 363 293L512 394L661 293C693 271 737 294 737 333V742C737 767 717 787 692 787C667 787 647 767 647 742V419L538 493C522 504 502 504 486 493L377 419V742C377 767 357 787 332 787C307 787 287 767 287 742Z" fill="url(#mark)"/>
+    <circle cx="329" cy="744" r="68" fill="url(#mark)"/>
+    <circle cx="694" cy="744" r="68" fill="url(#mark)"/>
+    <path d="M647 337V230C647 201 679 183 704 198L805 259C826 272 833 300 820 321C807 342 779 349 758 336L737 323V337H647Z" fill="url(#mark)"/>
+  </g>
+  <path d="M166 250C241 148 371 97 512 97C653 97 783 148 858 250" stroke="white" stroke-width="18" stroke-linecap="round" opacity="0.12"/>
+</svg>

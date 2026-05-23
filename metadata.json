@@ -1,0 +1,6 @@
+{
+  "name": "Musica",
+  "description": "An intelligent full-stack automated music curation and lyrics transcription workspace built with Gemini's advanced multimodal audio understanding.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
