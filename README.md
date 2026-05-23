@@ -171,6 +171,33 @@ Musica/
 
 ---
 
+## Two-pass curation (recommended)
+
+Gemini is strong at **lyric transcription** but weaker at **structure tagging**. Musica uses:
+
+| Pass | Model | Task |
+|------|--------|------|
+| 1 — Transcription | Your toggle (Flash/Pro) | Hear audio, write lyric lines only (no `[Verse]` tags) |
+| 2 — Structure | Gemini Pro (`gemini-2.5-pro`) | Hear audio + read draft; add `[Intro]`, `[Chorus]`, `#INSTRUMENTAL` only — **no word changes** |
+
+Both passes load **web + extended** Musixmatch guidelines together.
+
+Toggle **Split structure tagging** in the UI (on by default).
+
+### Is there a dedicated “structure tagging” API?
+
+There is no widely used public API that only tags Musixmatch-style sections. Practical options:
+
+- **This app’s Pass 2** — structure-only Gemini call with strict prompts (implemented).
+- **Audio segmentation** (librosa, etc.) — detects breaks, not lyric-aware `[Verse]` semantics.
+- **Future** — plug in another LLM endpoint as `structure_model` if you add one.
+
+## Audio compression
+
+Files over **~3.5 MB** are re-encoded in the **browser** (mono MP3, lower bitrate) before upload so Vercel’s body limit is respected. The server also attempts compression via `pydub` when `ffmpeg` is available (local/Railway).
+
+---
+
 ## Deploy on Vercel (multi-service)
 
 This repo uses **[Vercel Services](https://vercel.com/docs/services)** via root `vercel.json`:

@@ -1,3 +1,4 @@
 -r requirements.txt
 uvicorn[standard]>=0.32.0
 reportlab>=4.2.0
+# pydub server compression needs ffmpeg on PATH

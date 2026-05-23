@@ -94,7 +94,7 @@ export function UploadZone({
           Drop your track here
         </p>
         <p className="mt-2 text-sm text-foreground/45">
-          MP3 or WAV · max 50 MB
+          MP3 or WAV · auto-compress if over ~3.5 MB
         </p>
         {fileName && (
           <p className="mt-4 font-mono text-xs text-accent">{fileName}</p>
@@ -110,7 +110,7 @@ export function UploadZone({
       {busy && (
         <div className="mt-4">
           <div className="mb-1 flex justify-between text-xs text-foreground/50">
-            <span>Processing with Gemini…</span>
+            <span>Curating lyrics…</span>
             <span>{Math.round(progress ?? 0)}%</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-surface-border">

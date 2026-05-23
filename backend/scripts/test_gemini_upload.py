@@ -26,9 +26,12 @@ def main() -> None:
         sys.exit(1)
 
     print(f"Curating {audio} ...")
-    result = curate_audio(audio, model="gemini-2.5-flash", temperature=0.1)
+    markdown, pipeline = curate_audio(
+        audio, model="gemini-2.5-flash", temperature=0.1, split_structure=True
+    )
+    print("Pipeline:", pipeline)
     print("\n--- OUTPUT ---\n")
-    print(result)
+    print(markdown)
 
 
 if __name__ == "__main__":

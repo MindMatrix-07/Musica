@@ -11,6 +11,7 @@ from app.config import (
     MODEL_DEEP,
     MODEL_FAST,
 )
+from app.services.audio_compress import cleanup_compressed, compress_audio_if_needed
 from app.services.gemini_curator import curate_audio
 from app.services.grounding import ensure_grounding_files
 from app.services.temp_files import delete_file, purge_stale_temp, save_upload_transient
@@ -46,6 +47,7 @@ async def curate_endpoint(
     model: str = Form(default=MODEL_FAST),
     temperature: float = Form(default=DEFAULT_TEMPERATURE),
     user_prompt: str = Form(default=""),
+    split_structure: str = Form(default="true"),
     x_gemini_api_key: str | None = Header(default=None, alias="X-Gemini-Api-Key"),
 ):
     """
@@ -56,6 +58,7 @@ async def curate_endpoint(
     ensure_grounding_files()
     api_key = _resolve_api_key(x_gemini_api_key)
     prompt = _normalize_user_prompt(user_prompt)
+    use_split = split_structure.lower() in {"true", "1", "yes", "on"}
 
     if model not in {MODEL_FAST, MODEL_DEEP, "gemini-3.5-flash", "gemini-1.5-pro"}:
         model = DEFAULT_MODEL
@@ -70,19 +73,26 @@ async def curate_endpoint(
             )
 
     temp_path: Path | None = None
+    audio_path: Path | None = None
+    compressed = False
     try:
         temp_path = await save_upload_transient(file)
-        markdown = curate_audio(
-            temp_path,
+        audio_path, compressed = compress_audio_if_needed(temp_path)
+        markdown, pipeline = curate_audio(
+            audio_path,
             model=model,
             temperature=temperature,
             api_key=api_key,
             user_prompt=prompt,
+            split_structure=use_split,
         )
         return {
             "markdown": markdown,
             "model": model,
             "temperature": temperature,
+            "pipeline": pipeline,
+            "split_structure": use_split,
+            "compressed": compressed,
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -91,5 +101,7 @@ async def curate_endpoint(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Curation failed: {e}") from e
     finally:
+        if temp_path and audio_path:
+            cleanup_compressed(audio_path, temp_path)
         if temp_path:
             delete_file(temp_path)

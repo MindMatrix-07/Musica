@@ -8,6 +8,9 @@ export interface CurateResponse {
   markdown: string;
   model: string;
   temperature: number;
+  pipeline?: string[];
+  split_structure?: boolean;
+  compressed?: boolean;
 }
 
 export async function curateAudio(
@@ -16,6 +19,7 @@ export async function curateAudio(
     model: CurateModel;
     temperature: number;
     userPrompt?: string;
+    splitStructure?: boolean;
     onProgress?: (percent: number) => void;
   }
 ): Promise<CurateResponse> {
@@ -23,6 +27,10 @@ export async function curateAudio(
   form.append("file", file);
   form.append("model", options.model);
   form.append("temperature", String(options.temperature));
+  form.append(
+    "split_structure",
+    options.splitStructure === false ? "false" : "true"
+  );
   if (options.userPrompt?.trim()) {
     form.append("user_prompt", options.userPrompt.trim());
   }

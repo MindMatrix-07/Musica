@@ -20,6 +20,9 @@ MAX_UPLOAD_BYTES = (
     4 * 1024 * 1024 if IS_VERCEL else 50 * 1024 * 1024
 )
 MAX_USER_PROMPT_CHARS = 2000
+
+# Compress before Gemini when larger than this (bytes)
+COMPRESS_TARGET_BYTES = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".mp3", ".wav"}
 ALLOWED_MIME_TYPES = {
     "audio/mpeg",

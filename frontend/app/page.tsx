@@ -7,7 +7,12 @@ import { ConfigPanel } from "@/components/ConfigPanel";
 import { PromptBox } from "@/components/PromptBox";
 import { ResultsViewer } from "@/components/ResultsViewer";
 import { UploadZone } from "@/components/UploadZone";
-import { curateAudio, type CurateModel } from "@/lib/api";
+import { curateAudio, type CurateModel, type CurateResponse } from "@/lib/api";
+import {
+  compressAudioIfNeeded,
+  formatBytes,
+} from "@/lib/compress-audio";
+import { getSplitStructure } from "@/lib/pipeline";
 import { getStoredPrompt, setStoredPrompt } from "@/lib/prompt";
 import { hasApiKey } from "@/lib/settings";
 
@@ -23,10 +28,21 @@ export default function DashboardPage() {
   const [processing, setProcessing] = useState(false);
   const [apiKeyReady, setApiKeyReady] = useState(false);
   const [userPrompt, setUserPrompt] = useState("");
+  const [splitStructure, setSplitStructure] = useState(true);
+  const [statusNote, setStatusNote] = useState<string | null>(null);
+  const [lastMeta, setLastMeta] = useState<Pick<
+    CurateResponse,
+    "pipeline" | "compressed"
+  > | null>(null);
   const audioUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     setUserPrompt(getStoredPrompt());
+    setSplitStructure(getSplitStructure());
+    const syncPipeline = () => setSplitStructure(getSplitStructure());
+    window.addEventListener("musica-pipeline-updated", syncPipeline);
+    return () =>
+      window.removeEventListener("musica-pipeline-updated", syncPipeline);
   }, []);
 
   useEffect(() => {
@@ -60,16 +76,37 @@ export default function DashboardPage() {
       setAudioUrl(url);
 
       setProcessing(true);
-      setProgress(5);
+      setProgress(2);
+      setStatusNote(null);
+      setLastMeta(null);
 
       try {
-        const result = await curateAudio(selected, {
+        setProgress(8);
+        setStatusNote("Checking audio size…");
+        const { file: uploadFile, compressed, originalSize, finalSize } =
+          await compressAudioIfNeeded(selected);
+        if (compressed) {
+          setStatusNote(
+            `Compressed ${formatBytes(originalSize)} → ${formatBytes(finalSize)} for upload`
+          );
+        }
+
+        setProgress(15);
+        const result = await curateAudio(uploadFile, {
           model,
           temperature: TEMPERATURE,
           userPrompt,
-          onProgress: setProgress,
+          splitStructure,
+          onProgress: (p) => setProgress(Math.max(15, p)),
         });
         setMarkdown(result.markdown);
+        setLastMeta({
+          pipeline: result.pipeline,
+          compressed: result.compressed || compressed,
+        });
+        if (result.pipeline?.length) {
+          setStatusNote(`Pipeline: ${result.pipeline.join(" → ")}`);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
       } finally {
@@ -77,7 +114,7 @@ export default function DashboardPage() {
         setProgress(null);
       }
     },
-    [model, userPrompt]
+    [model, userPrompt, splitStructure]
   );
 
   return (
@@ -85,9 +122,9 @@ export default function DashboardPage() {
       <AppHeader />
 
       <p className="-mt-4 mb-8 max-w-2xl text-sm text-foreground/50">
-        Upload complex audio, apply permanent Musixmatch formatting policies,
-        and export structured markdown lyrics. Files are processed transiently
-        and never persisted on disk beyond the request.
+        Two-pass curation: Gemini writes lyrics, then a structure-only pass
+        tags [Verse]/[Chorus] using web + extended Musixmatch guidelines
+        together. Large files are compressed in-browser before upload.
       </p>
 
       {!apiKeyReady && (
@@ -119,8 +156,13 @@ export default function DashboardPage() {
             model={model}
             onModelChange={setModel}
             temperature={TEMPERATURE}
+            splitStructure={splitStructure}
+            onSplitStructureChange={setSplitStructure}
             disabled={processing}
           />
+          {statusNote && (
+            <p className="text-xs text-foreground/45">{statusNote}</p>
+          )}
           {file && !processing && (
             <button
               type="button"
